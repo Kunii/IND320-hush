@@ -5,6 +5,8 @@ description = "IND320-hush Streamlit app"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "ipykernel>=7.3.0",
+    "jupyter>=1.1.1",
     "streamlit>=1.61.1",
 ]
 
