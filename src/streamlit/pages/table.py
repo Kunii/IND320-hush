@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from src.utils.dataloader import load_res_csv
+from src.utils.dataloader import ReservoirData
 
 # Page 3
 
@@ -13,31 +13,31 @@ from src.utils.dataloader import load_res_csv
 
 class ReservoirTable:
     def __init__(self):
-        self.res_df = load_res_csv()
+        self.rd = ReservoirData()  # Create an instance of ReservoirData
+        self.res_df = self.rd.load_csv() # Loads a lightly processed DF
         self.filtered_df = self.filter_first_month_data()
 
     def filter_first_month_data(self):
-        data = self.res_df.copy() # Dont modify the original dataframe
-        data = data[["dato_Id", "fyllingsgrad", "fyllingsgrad_forrige_uke", "endring_fyllingsgrad", "kapasitet_TWh", "fylling_TWh"]] # Select relevant columns
-        
-        data["dato_Id"] = pd.to_datetime(data["dato_Id"]) # Convert the "dato_Id" column to datetime object
-        
-        first_year = data[data["dato_Id"].dt.year == data["dato_Id"].dt.year.min()] # Get the first year in the dataset
-        first_month = first_year[first_year["dato_Id"].dt.month ==first_year["dato_Id"].dt.month.min()] # Get the first month in the first year
-        
+        data = self.res_df.copy()[["date", "water_level", "water_level_prev_week", "water_level_change", "twh_cap", "twh_fill"]] # As to not modify the original DF
+        first_year = data[data["date"].dt.year == data["date"].dt.year.min()] # Get the first year in the dataset
+        first_month = first_year[first_year["date"].dt.month == first_year["date"].dt.month.min()] # Get the first month of the first year
+
+        #print(f"Unique years (should be 1995): {first_year["date"].dt.year.unique()}") # Sanity check - Get the unique years in the first year dataframe
+        #print(f"Unique months (should be 1): {first_month["date"].dt.month.unique()}") # Sanity check - Get the unique months in the first month dataframe
+                
         value_columns = first_month.select_dtypes(include="number").columns # Omit columns with non-numeric data
-        
+
         filtered_df = pd.DataFrame(
             {
-                "col": value_columns,
-                "first_month": [
+                "Column Name": value_columns, # Column of original column names
+                "First Month Values": [ # Values as a list
                     first_month[column].tolist() for column in value_columns
                 ],
             }
         )
         
         return filtered_df
-    
+            
     def display_table(self):
         st.write("Reservoir Data Table")
         st.dataframe(self.res_df)
@@ -51,8 +51,8 @@ class ReservoirTable:
 
         st.dataframe(self.filtered_df,
                         column_config={
-                            "col": st.column_config.TextColumn("Column Name"),
-                            "first_month": st.column_config.LineChartColumn(
+                            "Column Name": st.column_config.TextColumn("Column Name"),
+                            "First Month Values": st.column_config.LineChartColumn(
                                 "First Month Data",
                                 width="medium",
                                 help="Line chart of the first month data",
