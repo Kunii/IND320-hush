@@ -5,7 +5,6 @@
     
 """
 
-import os
 import tomllib
 import streamlit as st
 from pathlib import Path
