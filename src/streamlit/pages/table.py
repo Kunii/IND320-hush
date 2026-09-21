@@ -43,19 +43,18 @@ class ReservoirTable:
         st.dataframe(self.res_df)
 
     def display_first_month_table(self):
-        st.write("Reservoir First Month Data Table")
+        st.write("Reservoir first month data table")
         st.dataframe(self.filtered_df)
 
     def display_line_chart(self):
-        st.write("Reservoir first month data line chart")
+        st.write("Reservoir first month data line charts")
 
         st.dataframe(self.filtered_df,
                         column_config={
-                            "Column Name": st.column_config.TextColumn("Column Name"),
+                            "Column Name": st.column_config.TextColumn(label="Column Name"),
                             "First Month Values": st.column_config.LineChartColumn(
-                                "First Month Data",
-                                width="medium",
-                                help="Line chart of the first month data",
+                                label="First Month Plot",
+                                help="Line chart of the first month values",
                                 y_min=0,
                                 y_max=100
                             )
