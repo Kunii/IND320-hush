@@ -164,5 +164,6 @@ cython_debug/
 #.idea/
 
 # Miscellaneous
-secrets.toml
 .agents/
+.secrets/
+.streamlit/secrets.toml

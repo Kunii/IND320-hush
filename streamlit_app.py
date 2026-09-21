@@ -1,6 +1,12 @@
 import streamlit as st
+from src.utils.env import secrets
 
-st.title("🎈 My new app")
+# Top-level keys
+db_user = secrets.get_required("DB_USERNAME")
+db_token = secrets.get("DB_TOKEN")
+
+
+st.title("IND320 - Robin E")
 st.write(
-    "Let's start building! For help and inspiration, head over to [docs.streamlit.io](https://docs.streamlit.io/)."
+    "Hello :)"
 )
