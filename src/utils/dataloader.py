@@ -55,8 +55,8 @@ class ReservoirData:
 
         df_raw_shape: tuple[int, int] = df.shape
 
-        df = self.csv_nob_to_eng(df)
-        df = self.set_df_dtypes(df)
+        df = self.csv_nob_to_eng(df) # Convert norwegian to eng
+        df = self.set_df_dtypes(df) # Set strict column data types
 
         if df.shape != df_raw_shape: # Just in case: check if the data shape changed, should NEVER trigger
             raise ValueError(f"DataFrame shape changed after processing: {df_raw_shape} -> {df.shape}")
@@ -140,19 +140,6 @@ class ReservoirData:
         
         return df
     
-    def select_columns(self, df: pd.DataFrame, columns: list[str]) -> pd.Series | pd.DataFrame:
-        """
-        Select specific columns from the DataFrame.
-
-        Args:
-            df (pd.DataFrame): Original DataFrame.
-            columns (list[str]): List of column names to select.
-        
-        Returns:
-            pd.Series | pd.DataFrame: Series or DataFrame containing only the selected columns.
-        """
-        return df[columns]
-    
     def filter_by_months(self, df: pd.DataFrame, month_count: int) -> pd.DataFrame:
         """
         Filter the DataFrame by a number of months.
@@ -167,4 +154,4 @@ class ReservoirData:
         min_date = df['date'].min().to_period('M').to_timestamp() # Get the first day of the month for the minimum date
         last_date = min_date + pd.DateOffset(months=month_count)
 
-        return df.loc[(df['date'] >= min_date) & (df['date'] <= last_date)]
+        return df.loc[(df['date'] >= min_date) & (df['date'] <= last_date)] # Logical mask filtered dataframe

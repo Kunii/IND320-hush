@@ -26,12 +26,10 @@ class ReservoirTable:
 
         value_columns = first_month.select_dtypes(include="number").columns # Omit columns with non-numeric data
 
-        filtered_df = pd.DataFrame(
+        filtered_df = pd.DataFrame( # Reconstruct a strange dataframe for the line chart column plotting
             {
-                "Column Name": value_columns, # Column of original column names
-                "First Month Values": [ # Values as a list
-                    first_month[column].tolist() for column in value_columns
-                ],
+                "Column Name": value_columns, # Column of column names
+                "First Month Values": [first_month[column].tolist() for column in value_columns] # Column of a list of values, where each row = column values
             }
         )
         
@@ -39,23 +37,21 @@ class ReservoirTable:
             
     def display_table(self):
         st.write("Reservoir table")
-        st.dataframe(self.res_df)
+        st.dataframe(self.res_df) # Table view
 
     def display_first_month_table(self):
-        st.write("Reservoir first month table")
-        st.dataframe(self.filtered_df)
+        st.write("First month table")
+        st.dataframe(self.filtered_df) # Table view
 
     def display_line_chart(self):
-        st.write("Reservoir first month line charts")
+        st.write("First month line charts")
 
         st.dataframe(self.filtered_df,
                         column_config={
                             "Column Name": st.column_config.TextColumn(label="Column Name"),
                             "First Month Values": st.column_config.LineChartColumn(
-                                label="First Month Plot",
-                                help="Line chart of the first month values",
-                                y_min=0,
-                                y_max=100
+                                label="Plot",
+                                help="Line chart of the first month values"
                             )
                         }
                      )
