@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from src.utils.dataloader import ReservoirData
 
-# Page 3
+# Page 2
 
 # A table showing the imported data (see below).
 # Use the row-wise LineChartColumn() to display the first month of the data series.
@@ -11,20 +11,19 @@ from src.utils.dataloader import ReservoirData
 # Data should be read from a local CSV-file (reservoirs.csv), using caching for app speed.
 # In part 2 of the project, we will remove this file and rely on MongoDB instead.
 
+
 class ReservoirTable:
     def __init__(self):
         self.rd = ReservoirData()  # Create an instance of ReservoirData
-        self.res_df = self.rd.load_csv() # Loads a lightly processed DF
+        self.res_df = self.rd.load_csv_cached().sort_values(by='date') # Loads a lightly processed DF
         self.filtered_df = self.filter_first_month_data()
 
     def filter_first_month_data(self):
-        data = self.res_df.copy()[["date", "water_level", "water_level_prev_week", "water_level_change", "twh_cap", "twh_fill"]] # As to not modify the original DF
-        first_year = data[data["date"].dt.year == data["date"].dt.year.min()] # Get the first year in the dataset
-        first_month = first_year[first_year["date"].dt.month == first_year["date"].dt.month.min()] # Get the first month of the first year
+        
+        data: pd.DataFrame = self.res_df.copy() # As to not modify the original DF
+        first_month = self.rd.filter_by_months(data, 1) # Get the first month of the first year
+        first_month.drop(columns=["area_type", "area_number", "iso_year", "iso_week", "next_publication_date"], inplace=True)  # Drop columns that are not relevant for plotting
 
-        #print(f"Unique years (should be 1995): {first_year["date"].dt.year.unique()}") # Sanity check - Get the unique years in the first year dataframe
-        #print(f"Unique months (should be 1): {first_month["date"].dt.month.unique()}") # Sanity check - Get the unique months in the first month dataframe
-                
         value_columns = first_month.select_dtypes(include="number").columns # Omit columns with non-numeric data
 
         filtered_df = pd.DataFrame(
@@ -39,15 +38,15 @@ class ReservoirTable:
         return filtered_df
             
     def display_table(self):
-        st.write("Reservoir Data Table")
+        st.write("Reservoir table")
         st.dataframe(self.res_df)
 
     def display_first_month_table(self):
-        st.write("Reservoir first month data table")
+        st.write("Reservoir first month table")
         st.dataframe(self.filtered_df)
 
     def display_line_chart(self):
-        st.write("Reservoir first month data line charts")
+        st.write("Reservoir first month line charts")
 
         st.dataframe(self.filtered_df,
                         column_config={
@@ -64,6 +63,7 @@ class ReservoirTable:
     def render(self):
         
         st.title("Reservoir Data CSV")
+        st.write("Task 2")
         
         self.display_table()
         self.display_first_month_table()
