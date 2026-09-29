@@ -86,9 +86,9 @@ class SecretManager:
         
         for key, value in streamlit_secrets.items():
             if self._local_priority and key in merged:
-                continue  # Skip if local secrets have priority and key exists in local secrets
+                continue # Skip if local secrets have priority and key exists in local secrets
             
-            merged[key] = value  # Update or add the secret from Streamlit
+            merged[key] = value # Update or add the secret from Streamlit
         
         return merged
 

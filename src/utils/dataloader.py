@@ -29,7 +29,7 @@ class ReservoirData:
         return pd.read_csv(self.csv_path)
 
     @st.cache_data
-    def load_csv_raw_cached(_self) -> pd.DataFrame: # Using _self to avoid streamlit caching issues
+    def load_csv_raw_cached(_self) -> pd.DataFrame: # Using _self for streamlit
         """
         Streamlit cached version of load_csv_raw().
         Load the reservoir data from the CSV file.
@@ -48,7 +48,7 @@ class ReservoirData:
         Converts column names to English + all lowercase, sets explicit column data types.
 
         Returns:
-            pd.DataFrame: DataFrame containing the reservoir data with English column names.
+            pd.DataFrame: DataFrame containing the reservoir data with English column names & strict column data types.
         """
 
         df: pd.DataFrame = self.load_csv_raw()
@@ -64,14 +64,14 @@ class ReservoirData:
         return df
     
     @st.cache_data
-    def load_csv_cached(_self) -> pd.DataFrame: # Using _self to avoid streamlit caching issues
+    def load_csv_cached(_self) -> pd.DataFrame: # Using _self for streamlit
         """
         Streamlit cached version of load_csv().
         Load the reservoir data from the CSV file.
         Converts column names to English + all lowercase, sets explicit column data types.
 
         Returns:
-            pd.DataFrame: DataFrame containing the reservoir data with English column names.
+            pd.DataFrame: DataFrame containing the reservoir data with English column names & strict column data types.
         """
         return _self.load_csv() # Call the non-cached version
 
@@ -151,7 +151,7 @@ class ReservoirData:
         Returns:
             pd.DataFrame: Filtered DataFrame containing only rows within the specified month count.
         """
-        min_date = df['date'].min().to_period('M').to_timestamp() # Get the first day of the month for the minimum date
-        last_date = min_date + pd.DateOffset(months=month_count)
+        min_date = df['date'].min().to_period('M').to_timestamp() # Get the first day of the month from the "minimum" date
+        last_date = min_date + pd.DateOffset(months=month_count) # Create end date for filter mask
 
         return df.loc[(df['date'] >= min_date) & (df['date'] <= last_date)] # Logical mask filtered dataframe

@@ -14,7 +14,7 @@ from src.utils.dataloader import ReservoirData
 
 class ReservoirTable:
     def __init__(self):
-        self.rd = ReservoirData()  # Create an instance of ReservoirData
+        self.rd = ReservoirData() # Create an instance of ReservoirData
         self.res_df = self.rd.load_csv_cached().sort_values(by='date') # Loads a lightly processed DF
         self.filtered_df = self.filter_first_month_data()
 
@@ -22,7 +22,7 @@ class ReservoirTable:
         
         data: pd.DataFrame = self.res_df.copy() # As to not modify the original DF
         first_month = self.rd.filter_by_months(data, 1) # Get the first month of the first year
-        first_month.drop(columns=["area_type", "area_number", "iso_year", "iso_week", "next_publication_date"], inplace=True)  # Drop columns that are not relevant for plotting
+        first_month.drop(columns=["area_type", "area_number", "iso_year", "iso_week", "next_publication_date"], inplace=True) # Drop columns that are not relevant for plotting
 
         value_columns = first_month.select_dtypes(include="number").columns # Omit columns with non-numeric data
 
