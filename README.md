@@ -1,5 +1,7 @@
 # IND320 Project - RTE
 
+[Streamlit page](https://ind320-hush.streamlit.app)
+
 ## Repo structure
 
 ```txt
