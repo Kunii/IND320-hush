@@ -12,11 +12,12 @@ from typing import Any
 
 class SecretManager:
     
-    def __init__(self, secrets_path: Path | str | None = None, local_priority: bool = False) -> None:
+    def __init__(self, secrets_path: Path | str | None = None, local_priority: bool = False, path_redacted: bool = True) -> None:
         
         self._repo_root: Path = Path(__file__).parent.parent.parent # Fetch repo root directory
         self._secrets_path: Path = self._repo_root / ".secrets" # Define secrets dir
         self._local_priority: bool = local_priority # Flag to determine if local secrets have priority
+        self._path_redacted: bool = path_redacted # Flag to determine if secrets path should be redacted in logs
         
         self._data: dict[str, Any] = {} # Initialize an empty dictionary to hold secrets
         
@@ -37,12 +38,19 @@ class SecretManager:
         
         if secrets_path is not None: # Check if a secrets file path is provided
             file_path = Path(secrets_path)
-            print(f"Using secrets path: {file_path}")
+            if self._path_redacted:
+                print(f"Using secrets path: {str(file_path).replace(str(self._repo_root.parent), '[REDACTED]')}")
+            else:
+                print(f"Using secrets path: {file_path}")
         else:
             file_path = self._secrets_path / "secrets.toml" # Construct default path to secrets.toml
             
-            print(f"No secrets path provided")
-            print(f"Defaulting to: {file_path}")
+            if self._path_redacted:
+                print(f"No secrets path provided")
+                print(f"Defaulting to: {str(file_path).replace(str(self._repo_root.parent), '[REDACTED]')}")
+            else:
+                print(f"No secrets path provided")
+                print(f"Defaulting to: {file_path}")
         
         return file_path
 
