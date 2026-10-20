@@ -9,26 +9,35 @@
 ├── .github/                     # Streamlit autogen stuff
 |
 ├── data/                        # Data files
-|     └── reservoirs.csv         # Project part 1 data csv
+|     └── Y_eicCodes.csv         # EIC codes CSV
 |
 ├── docs/                        # Project document files
-|     └── CA1/                   # Project part 1 files
-|           └── task.md          # Task description
+|     ├── CA1/                   # Project part 1 files
+|     |     └── task.md          # Task description
+|     |
+|     └── CA2/                   # Project part 2 files
+|           ├── task.md          # Task description
+|           └── Proj-P2.mp4      # Video file
 |
 ├── notebooks/                   # Project notebooks
-|     └── Proj-P1.ipynb          # Project Part 1 notebook
+|     ├── CA1/
+|     |     └── Proj-P1.ipynb     # Project Part 1 notebook
+|     └── CA2/
+|           └── Proj-P2.ipynb     # Project Part 2 notebook
 |
 ├── src/                         # Package root
 |     ├── streamlit/             # Streamlit specific code
 |     |     ├── components/      # Page components - Planned, currently unused
 |     |     └── pages/           # Pages
 |     |          ├── diag.py     # Diagram page
-|     |          ├── dummy.py    # Dummy page
+|     |          ├── flows.py    # Flows page
 |     |          ├── home.py     # Home page
 |     |          └── table.py    # Table view page
 |     |
 |     └──utils/                  # General utility code
-|           ├── dataloader.py    # Dataloader stuff, eg. ReservoirData for 'data/reservoirs.csv'
+|           ├── dataloader.py    # OLD - To be removed / rewritten - Dataloader stuff, eg. ReservoirData for 'data/reservoirs.csv'
+|           ├── magasin.py       # NVE Api stuff
+|           ├── mongo.py         # MongoDB stuff
 |           └── env.py           # Secrets file stuff
 |
 ├── .gitignore                   # Git ignored content
