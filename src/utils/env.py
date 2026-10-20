@@ -58,24 +58,34 @@ class SecretManager:
     def _load_secrets(self) -> None:
         """
             Loads secrets into memory as a dictionary.
+
+            Local development uses .secrets/secrets.toml. Streamlit Community
+            Cloud has no such file, so st.secrets is used as a fallback (and
+            merged on top of the local file when both are available).
         """
-        
-        if not self.file_path.exists():
-            raise FileNotFoundError(f"Secrets file not found at: {self.file_path}")
-        
-        with open(self.file_path, "rb") as f:
-            self._data = tomllib.load(f)
-        
-        try: # Fetch & local secrets with Steamlit secrets if available
-            
+
+        self._data = {}
+
+        if self.file_path.exists():
+            with open(self.file_path, "rb") as f:
+                self._data = tomllib.load(f)
+        else:
+            print(f"Local secrets file not found at: {self.file_path}")
+
+        try: # Merge Streamlit secrets when running inside Streamlit
             sl_dict = {k: v for k, v in st.secrets.items()}
-            self._data = self._merge_secrets(sl_dict) # Merge Streamlit secrets with local secrets
-            
-            print(f"Loaded secrets from Streamlit & merged with local secrets.")
-            
-        except Exception as e:
-            pass # No Streamlit secrets
-        
+            if sl_dict:
+                self._data = self._merge_secrets(sl_dict)
+                print("Loaded secrets from Streamlit & merged with local secrets.")
+        except Exception:
+            pass # No Streamlit secrets available (plain Python / notebook)
+
+        if not self._data:
+            raise FileNotFoundError(
+                "No secrets found. Provide .secrets/secrets.toml locally or "
+                "configure the secrets in Streamlit."
+            )
+
     
     def _merge_secrets(self, streamlit_secrets: dict[str, Any]) -> dict[str, Any]:
         """

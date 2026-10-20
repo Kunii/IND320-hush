@@ -1,68 +1,130 @@
-import streamlit as st
+"""Reservoir table page for the IND320 P2 app."""
+
+from __future__ import annotations
+
 import pandas as pd
-from src.utils.dataloader import ReservoirData
+import streamlit as st
 
-# Page 2
+from src.utils.magasin import (
+    AREA_TYPES,
+    MEASUREMENT_COLUMNS,
+    area_numbers_for,
+    load_interval,
+)
 
-# A table showing the imported data (see below).
-# Use the row-wise LineChartColumn() to display the first month of the data series.
-# There should be one row in the table for each column of the imported data.
+TIDY_COLUMNS = [
+    "date",
+    "area_type",
+    "area_number",
+    "water_level",
+    "twh_cap",
+    "twh_fill",
+    "water_level_prev_week",
+    "water_level_change",
+]
 
-# Data should be read from a local CSV-file (reservoirs.csv), using caching for app speed.
-# In part 2 of the project, we will remove this file and rely on MongoDB instead.
+
+def build_sparkline_table(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Build one row per area number and measurement.
+
+    ``st.column_config.LineChartColumn`` expects a plain list of values per
+    row, so the time series is stored in the ``Series`` column.
+    """
+    rows: list[dict[str, object]] = []
+
+    for area_number, area_df in df.groupby("area_number", sort=True):
+        area_df = area_df.sort_values("date")
+        for column in MEASUREMENT_COLUMNS:
+            series = area_df[column].dropna()
+            if series.empty:
+                continue
+
+            rows.append(
+                {
+                    "Area": f"Area {int(area_number)}",
+                    "Measurement": column,
+                    "Min": float(series.min()),
+                    "Max": float(series.max()),
+                    "Series": series.tolist(),
+                }
+            )
+
+    return pd.DataFrame(rows)
 
 
-class ReservoirTable:
-    def __init__(self):
-        self.rd = ReservoirData() # Create an instance of ReservoirData
-        self.res_df = self.rd.load_csv_cached().sort_values(by='date') # Loads a lightly processed DF
-        self.filtered_df = self.filter_first_month_data()
+def render_table(df: pd.DataFrame, area_type: str, months: int) -> None:
+    """Render the sparkline table and the optional tidy-data expander."""
+    area_numbers = area_numbers_for(df, area_type)
 
-    def filter_first_month_data(self):
-        
-        data: pd.DataFrame = self.res_df.copy() # As to not modify the original DF
-        first_month = self.rd.filter_by_months(data, 1) # Get the first month of the first year
-        first_month.drop(columns=["area_type", "area_number", "iso_year", "iso_week", "next_publication_date"], inplace=True) # Drop columns that are not relevant for plotting
+    st.caption(
+        f"Showing the first **{months}** month(s) of the data "
+        f"({df['date'].min().date()} to {df['date'].max().date()}). "
+        "Change the interval on the **Reservoir plot** page."
+    )
 
-        value_columns = first_month.select_dtypes(include="number").columns # Omit columns with non-numeric data
+    st.subheader(f"{area_type} area numbers: {', '.join(map(str, area_numbers))}")
+    st.dataframe(
+        build_sparkline_table(df),
+        hide_index=True,
+        width="stretch",
+        height=600,
+        column_config={
+            "Area": st.column_config.TextColumn("Area"),
+            "Measurement": st.column_config.TextColumn("Measurement"),
+            "Min": st.column_config.NumberColumn("Min", format="%.3f"),
+            "Max": st.column_config.NumberColumn("Max", format="%.3f"),
+            "Series": st.column_config.LineChartColumn(
+                "Selected interval",
+                help=(
+                    "Line chart of the measurement over the selected download "
+                    "interval."
+                ),
+            ),
+        },
+    )
 
-        filtered_df = pd.DataFrame( # Reconstruct a strange dataframe for the line chart column plotting
-            {
-                "Column Name": value_columns, # Column of column names
-                "First Month Values": [first_month[column].tolist() for column in value_columns] # Column of a list of values, where each row = column values
-            }
+    with st.expander("Show the tidy data table"):
+        st.dataframe(
+            df[TIDY_COLUMNS].tail(500),
+            hide_index=True,
+            width="stretch",
         )
-        
-        return filtered_df
-            
-    def display_table(self):
-        st.write("Reservoir table")
-        st.dataframe(self.res_df) # Table view
 
-    def display_first_month_table(self):
-        st.write("First month table")
-        st.dataframe(self.filtered_df) # Table view
 
-    def display_line_chart(self):
-        st.write("First month line charts")
+def main() -> None:
+    """Load the selected interval and render the table page."""
+    st.title("Reservoir table")
+    st.write(
+        "The table below is built from the NVE Magasinstatistikk API. Each row "
+        "is one measurement for one area number, and the last column contains "
+        "the time series for the selected download interval."
+    )
 
-        st.dataframe(self.filtered_df,
-                        column_config={
-                            "Column Name": st.column_config.TextColumn(label="Column Name"),
-                            "First Month Values": st.column_config.LineChartColumn(
-                                label="Plot",
-                                help="Line chart of the first month values"
-                            )
-                        }
-                     )
-        
-    def render(self):
-        
-        st.title("Reservoir Data CSV")
-        st.write("Task 2")
-        
-        self.display_table()
-        self.display_first_month_table()
-        self.display_line_chart()
+    # The slider lives on the Reservoir plot page. `download_months` is a plain
+    # session-state value (not a widget key), so it survives page navigation.
+    months = int(st.session_state.get("download_months", 1))
 
-ReservoirTable().render()
+    area_type = st.radio(
+        "Area type",
+        options=AREA_TYPES,
+        horizontal=True,
+        help="EL = Elspot areas, NO = Norway as one area, VASS = catchment areas.",
+    )
+
+    try:
+        df = load_interval(months)
+    except Exception as exc:  # Network/API errors should be shown, not traced.
+        st.error(f"Could not load the NVE data: {exc}")
+        st.stop()
+
+    df = df[df["area_type"] == area_type].copy()
+    if df.empty:
+        st.warning("No data for this area type.")
+        st.stop()
+
+    render_table(df, area_type, months)
+
+
+if __name__ == "__main__":
+    main()
