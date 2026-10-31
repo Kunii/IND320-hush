@@ -1,6 +1,9 @@
 # IND320 Project - RTE
 
-[Streamlit P2 page](https://ind320-hush-p2.streamlit.app) - [P1 page](https://ind320-hush.streamlit.app)  
+## Streamlit app
+
+[Main](https://ind320-hush.streamlit.app)  
+[P2 Snapshot](https://ind320-hush-p2.streamlit.app)
 
 ## Repo structure
 
