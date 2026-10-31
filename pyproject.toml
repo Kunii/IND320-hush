@@ -1,14 +1,46 @@
 [project]
 name = "IND320-hush"
-version = "0.1.0"
+version = "0.2.0"
 description = "IND320-hush Streamlit app"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = "==3.12.*"
 dependencies = [
-    "ipykernel>=7.3.0",
-    "jupyter>=1.1.1",
-    "matplotlib>=3.11.2",
-    "streamlit>=1.61.1",
+    "ipykernel",
+    "pip",
+    "jupyter-book",
+    "jupyterlab",
+    "jupyterlab-slideshow",
+    "jupyterlab_myst",
+    "matplotlib",
+    "numpy",
+    "setuptools",
+    "pandas",
+    "openpyxl",
+    "datetime",
+    "requests",
+    "river",
+    "cassandra-driver",
+    "pyspark==3.5.1",
+    "mysql.connector",
+    "flask",
+    "pybaselines",
+    "pyjstat",
+    "statsmodels",
+    "hoggorm",
+    "hoggormplot",
+    "scikit-learn",
+    "ipywidgets",
+    "plotly",
+    "anywidget",
+    "pydub",
+    "sounddevice",
+    "kaleido",
+    "lorem",
+    "pymongo",
+    "streamlit",
+    "nbstripout",
+    "docker",
+    "python-entsoe"
 ]
 
 [tool.uv]
