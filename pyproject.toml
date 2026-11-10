@@ -29,6 +29,7 @@ dependencies = [
     "hoggorm",
     "hoggormplot",
     "scikit-learn",
+    "scipy",
     "ipywidgets",
     "plotly",
     "anywidget",
@@ -40,7 +41,9 @@ dependencies = [
     "streamlit",
     "nbstripout",
     "docker",
-    "python-entsoe"
+    "python-entsoe",
+    "geopandas>=1.2.0",
+    "shapely>=2.2.0",
 ]
 
 [tool.uv]
@@ -49,3 +52,8 @@ package = true
 [tool.setuptools]
 packages = ["src", "src.streamlit", "src.streamlit.pages", "src.utils"]
 package-dir = { "src" = "src" }
+
+[dependency-groups]
+dev = [
+    "jupytext>=1.19.6",
+]

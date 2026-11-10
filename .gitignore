@@ -167,3 +167,13 @@ cython_debug/
 .agents/
 .secrets/
 .streamlit/secrets.toml
+
+# IND320 generated data
+data/cache/
+data/output/
+# Ad-hoc shapefile drops stay local, but the published atlas_nve dependency
+# is committed so the CA3 notebook runs from a fresh clone.
+data/shapefiles/*
+!data/shapefiles/atlas_nve/
+# Private raw dump: NVE zips, the VertiGIS config and the derived inventory.
+data/atlas_nve/
