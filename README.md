@@ -13,10 +13,8 @@
 | CA2 | Cassandra, MongoDB and ENTSO-E flows | `notebooks/CA2/Proj-P2.ipynb` | `docs/CA2/task.md` |
 | CA3 | Data quality: STL, spectrogram, SPC and LOF | `notebooks/CA3/Proj-P3.ipynb` (+ `Proj-P3.py` script) | `docs/CA3/task.md` |
 
-CA3 starts from [`docs/CA3/task.md`](docs/CA3/task.md). Coordinate handling is
-documented in [`docs/CA3/crs.md`](docs/CA3/crs.md). The private staging repo also
-carries the CA3 status record, the decision record and the measured API notes
-under `docs/CA3/`.
+CA3 starts from [`docs/CA3/task.md`](docs/CA3/task.md).  
+Coordinate handling is documented in [`docs/CA3/crs.md`](docs/CA3/crs.md).
 
 ## Repository structure
 
@@ -31,21 +29,15 @@ under `docs/CA3/`.
 │   ├── CA1/                    # P1 task text and video
 │   ├── CA2/                    # P2 task text and video
 │   └── CA3/
-│       ├── README.md           # documentation index
 │       ├── task.md             # converted assignment text
-│       ├── STATUS.md           # the status record
-│       ├── DECISIONS.md        # decisions and evidence
-│       ├── RELEASE.md          # owner runbook
 │       ├── crs.md              # coordinate reference systems
-│       ├── reference/          # API limits, CDS notes, peer reviews
-│       └── archive/            # superseded material (not authoritative)
+│       └── Proj-P3.mp4         # P3 video - placeholder
 │
 ├── notebooks/
 │   ├── CA1/Proj-P1.ipynb
 │   ├── CA2/Proj-P2.ipynb
 │   └── CA3/
 │       ├── Proj-P3.ipynb       # executed CA3 notebook (hand-in)
-│       ├── Proj-P3.html        # self-contained HTML export (the delivery)
 │       ├── Proj-P3.py          # notebook source and analysis script
 │       └── precompute_weather.py  # builds the shipped ERA5 caches
 │
@@ -111,8 +103,7 @@ Three CRSs, each at a fixed boundary: **EPSG:25833** (NVE's source data),
 **EPSG:4326** (GeoJSON, open-meteo, figures) and **EPSG:3035** (equal-area
 sampling in the ERA5 precompute). The Streamlit app carries no geometry at all.
 Read [`docs/CA3/crs.md`](docs/CA3/crs.md) before touching coordinates — it records where
-each one is used, why, and the measured sampling bias that comes from getting it
-wrong.
+each one is used, why, and the measured sampling bias that comes from getting it wrong.
 
 ## Running locally
 
