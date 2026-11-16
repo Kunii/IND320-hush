@@ -61,7 +61,6 @@ Coordinate handling is documented in [`docs/CA3/crs.md`](docs/CA3/crs.md).
 │   ├── test_analysis.py        # helpers, data functions, property tests
 │   └── test_weather_sources.py # parity, cache naming, source routing
 │
-├── .devcontainer/
 ├── .gitignore
 ├── .python-version
 ├── LICENSE
