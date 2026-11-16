@@ -18,7 +18,7 @@ Design (2026-11-10 revision)
   degree, which at Norwegian latitudes puts about 3x more points per km² in the
   north of an area than in the south; EPSG:3035 makes a random point equally
   likely per km². This is the one place in the project that samples, so it is
-  also the place where the choice matters. See ``docs/crs.md``.
+  also the place where the choice matters. See ``docs/CA3/crs.md``.
 * **Land clipping.** The raw NVE areas include the sea out to the territorial
   border (NO3 is 63 % land, NO4 57 %, North 59 %). Each area is intersected with
   NVE's ``Norge_N5000`` land layer before sampling.
@@ -43,6 +43,12 @@ Usage
     # Download all eight areas for 2024, 100 grid cells per area.
     .venv/bin/python notebooks/CA3/precompute_weather.py --year 2024 --cells 100
 
+    # The same eight caches from the Copernicus CDS instead of open-meteo.
+    # One GRIB request per year for the whole country box, then the same
+    # per-point translation, rounded per point (parity mode). No open-meteo
+    # quota is spent and the output is interchangeable with the API's.
+    .venv/bin/python notebooks/CA3/precompute_weather.py --source cds --year 2024
+
     # One area, custom interval, daily output.
     .venv/bin/python notebooks/CA3/precompute_weather.py \
         --regions NO3 --start 2024-01-01 --end 2024-12-31 \
@@ -50,7 +56,9 @@ Usage
 
 The default budget is 4,800 weighted calls, just under the hourly limit, so a
 single invocation is unlikely to trigger a 429. Existing caches are skipped, so
-a later invocation resumes where the previous one stopped.
+a later invocation resumes where the previous one stopped. ``--source cds``
+ignores the open-meteo budget: its cost is one request per year and the results
+land in ``--out-dir`` with a ``_cds`` suffix.
 """
 
 from __future__ import annotations
@@ -121,6 +129,16 @@ def parse_args() -> argparse.Namespace:
         choices=("hourly", "daily"),
         default="hourly",
         help="Store hourly area means (default) or daily aggregates.",
+    )
+    parser.add_argument(
+        "--source",
+        choices=("open-meteo", "cds"),
+        default="open-meteo",
+        help=(
+            "Where the ERA5 values come from. 'cds' reads the Copernicus "
+            "Climate Data Store (one GRIB request per year, no open-meteo "
+            "quota) and writes parity-mode caches with a _cds suffix."
+        ),
     )
     parser.add_argument(
         "--no-land",
@@ -317,6 +335,7 @@ def cache_names(
     land: bool,
     sample_crs: int,
     resolution: str,
+    source: str = "open-meteo",
 ) -> tuple[str, str]:
     """Cache names encode every choice that changes the values."""
     surface = "land" if land else "sea"
@@ -324,8 +343,31 @@ def cache_names(
         f"weather_{kind}_{name}_{start}_{end}"
         f"_c{cells}_{surface}{sample_crs}_{resolution}"
     )
+    if source != "open-meteo":
+        weather = f"{weather}_{source}"
     points = f"points_{kind}_{name}_c{cells}_{surface}{sample_crs}"
     return weather, points
+
+
+def build_cds_cache(kind: str, name: str, start: str, end: str, points, args) -> Path:
+    """Build one parity-mode cache from the CDS; nothing is sent to open-meteo."""
+    from src.utils.cds_era5 import DEFAULT_AREA
+    from src.utils.era5_cache import build_area_cache
+
+    return build_area_cache(
+        kind,
+        name,
+        start,
+        end,
+        mode="points",
+        points=points,
+        parity=True,
+        resolution=args.resolution,
+        area=list(DEFAULT_AREA),
+        output_dir=args.out_dir,
+        overwrite=args.refresh,
+        verbose=True,
+    )
 
 
 def fetch_hourly(
@@ -403,6 +445,14 @@ def area_mean(
     return daily
 
 
+def display_path(path: Path) -> str:
+    """Repo-relative path when possible, absolute otherwise (custom --out-dir)."""
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
 def load_manifest(path: Path) -> dict:
     if path.exists():
         return json.loads(path.read_text(encoding="utf-8"))
@@ -455,12 +505,14 @@ def main() -> int:
             not args.no_land,
             args.sample_crs,
             args.resolution,
+            args.source,
         )
         weather_cache = module.cache_path(weather_name)
         points_cache = module.cache_path(points_name)
         out_weather = args.out_dir / f"{weather_name}.parquet"
+        existing = out_weather if args.source == "cds" else weather_cache
 
-        if weather_cache.exists() and not args.refresh:
+        if existing.exists() and not args.refresh:
             print(
                 f"{name:<10}{'-':>9}{'-':>10}{'-':>7}{'-':>7}{0:>9}  cached"
             )
@@ -477,9 +529,9 @@ def main() -> int:
             cells = cells_on_land(cells, land, args.sample_crs)
         chosen = choose_cells(cells, args.cells, module.RANDOM_SEED)
 
-        weight = weighted_calls(len(chosen), start, end, module)
+        weight = 0.0 if args.source == "cds" else weighted_calls(len(chosen), start, end, module)
 
-        if spent + weight > args.budget:
+        if args.source != "cds" and spent + weight > args.budget:
             print(
                 f"{name:<10}{raw_km2:>9,.0f}{land_km2:>10,.0f}"
                 f"{len(cells):>7}{len(chosen):>7}{weight:>9,.0f}  budget stop"
@@ -487,15 +539,21 @@ def main() -> int:
             break
 
         if not args.dry_run:
-            parts_dir = module.CACHE_DIR / "parts" / weather_name
-            weather = fetch_hourly(
-                chosen, start, end, parts_dir, module, refresh=args.refresh
-            )
-            daily_like = area_mean(weather, args.resolution, module)
-            daily_like.reset_index().to_parquet(weather_cache, index=False)
             chosen.to_parquet(points_cache, index=False)
             args.out_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(weather_cache, out_weather)
+            if args.source == "cds":
+                built = build_cds_cache(kind, name, start, end, chosen, args)
+                if built != out_weather:
+                    built.replace(out_weather)
+                daily_like = pd.read_parquet(out_weather)
+            else:
+                parts_dir = module.CACHE_DIR / "parts" / weather_name
+                weather = fetch_hourly(
+                    chosen, start, end, parts_dir, module, refresh=args.refresh
+                )
+                daily_like = area_mean(weather, args.resolution, module)
+                daily_like.reset_index().to_parquet(weather_cache, index=False)
+                shutil.copyfile(weather_cache, out_weather)
 
             manifest["entries"].append(
                 {
@@ -504,6 +562,7 @@ def main() -> int:
                     "start": start,
                     "end": end,
                     "resolution": args.resolution,
+                    "source": args.source,
                     "land": not args.no_land,
                     "sample_crs": args.sample_crs,
                     "pool_points": args.pool,
@@ -513,8 +572,8 @@ def main() -> int:
                     "rows": int(len(daily_like)),
                     "raw_km2": round(raw_km2),
                     "land_km2": round(land_km2),
-                    "weather_file": str(weather_cache.relative_to(REPO_ROOT)),
-                    "points_file": str(points_cache.relative_to(REPO_ROOT)),
+                    "weather_file": display_path(out_weather),
+                    "points_file": display_path(points_cache),
                     "downloaded_at": datetime.now(timezone.utc).isoformat(
                         timespec="seconds"
                     ),

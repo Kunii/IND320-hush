@@ -44,6 +44,10 @@ dependencies = [
     "python-entsoe",
     "geopandas>=1.2.0",
     "shapely>=2.2.0",
+    "cdsapi>=0.7.7",
+    "eccodes>=2.50.1",
+    "rasterio>=1.5.2",
+    "eccodeslib>=2.50.0.34",
 ]
 
 [tool.uv]
@@ -56,4 +60,11 @@ package-dir = { "src" = "src" }
 [dependency-groups]
 dev = [
     "jupytext>=1.19.6",
+    "pytest>=9.2.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = ["ignore::pytest.PytestRemovedIn10Warning"]

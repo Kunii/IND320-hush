@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-10T01:32:50+00:00",
+  "generated_at": "2026-11-15T15:09:21+00:00",
   "entries": [
     {
       "region": "NO1",
@@ -18,7 +18,8 @@
       "land_km2": 59206,
       "weather_file": "data/cache/weather_electricity_NO1_2024-01-01_2024-12-31_c100_land3035_hourly.parquet",
       "points_file": "data/cache/points_electricity_NO1_c100_land3035.parquet",
-      "downloaded_at": "2026-11-10T01:26:16+00:00"
+      "downloaded_at": "2026-11-10T01:26:16+00:00",
+      "source": "open-meteo"
     },
     {
       "region": "NO2",
@@ -37,7 +38,8 @@
       "land_km2": 47670,
       "weather_file": "data/cache/weather_electricity_NO2_2024-01-01_2024-12-31_c100_land3035_hourly.parquet",
       "points_file": "data/cache/points_electricity_NO2_c100_land3035.parquet",
-      "downloaded_at": "2026-11-10T01:27:13+00:00"
+      "downloaded_at": "2026-11-10T01:27:13+00:00",
+      "source": "open-meteo"
     },
     {
       "region": "NO3",
@@ -56,7 +58,8 @@
       "land_km2": 65405,
       "weather_file": "data/cache/weather_electricity_NO3_2024-01-01_2024-12-31_c100_land3035_hourly.parquet",
       "points_file": "data/cache/points_electricity_NO3_c100_land3035.parquet",
-      "downloaded_at": "2026-11-10T01:28:10+00:00"
+      "downloaded_at": "2026-11-10T01:28:10+00:00",
+      "source": "open-meteo"
     },
     {
       "region": "NO4",
@@ -75,7 +78,8 @@
       "land_km2": 115974,
       "weather_file": "data/cache/weather_electricity_NO4_2024-01-01_2024-12-31_c100_land3035_hourly.parquet",
       "points_file": "data/cache/points_electricity_NO4_c100_land3035.parquet",
-      "downloaded_at": "2026-11-10T01:29:07+00:00"
+      "downloaded_at": "2026-11-10T01:29:07+00:00",
+      "source": "open-meteo"
     },
     {
       "region": "NO5",
@@ -94,7 +98,8 @@
       "land_km2": 27503,
       "weather_file": "data/cache/weather_electricity_NO5_2024-01-01_2024-12-31_c100_land3035_hourly.parquet",
       "points_file": "data/cache/points_electricity_NO5_c100_land3035.parquet",
-      "downloaded_at": "2026-11-10T01:29:59+00:00"
+      "downloaded_at": "2026-11-10T01:29:59+00:00",
+      "source": "open-meteo"
     },
     {
       "region": "East",
@@ -113,7 +118,8 @@
       "land_km2": 119614,
       "weather_file": "data/cache/weather_precipitation_East_2024-01-01_2024-12-31_c100_land3035_hourly.parquet",
       "points_file": "data/cache/points_precipitation_East_c100_land3035.parquet",
-      "downloaded_at": "2026-11-10T01:30:56+00:00"
+      "downloaded_at": "2026-11-10T01:30:56+00:00",
+      "source": "open-meteo"
     },
     {
       "region": "West",
@@ -132,7 +138,8 @@
       "land_km2": 45779,
       "weather_file": "data/cache/weather_precipitation_West_2024-01-01_2024-12-31_c100_land3035_hourly.parquet",
       "points_file": "data/cache/points_precipitation_West_c100_land3035.parquet",
-      "downloaded_at": "2026-11-10T01:31:53+00:00"
+      "downloaded_at": "2026-11-10T01:31:53+00:00",
+      "source": "open-meteo"
     },
     {
       "region": "North",
@@ -151,7 +158,168 @@
       "land_km2": 150365,
       "weather_file": "data/cache/weather_precipitation_North_2024-01-01_2024-12-31_c100_land3035_hourly.parquet",
       "points_file": "data/cache/points_precipitation_North_c100_land3035.parquet",
-      "downloaded_at": "2026-11-10T01:32:50+00:00"
+      "downloaded_at": "2026-11-10T01:32:50+00:00",
+      "source": "open-meteo"
+    },
+    {
+      "region": "NO1",
+      "kind": "electricity",
+      "start": "2024-01-01",
+      "end": "2024-12-31",
+      "resolution": "hourly",
+      "source": "cds",
+      "land": true,
+      "sample_crs": 3035,
+      "pool_points": 1000,
+      "available_cells": 167,
+      "requested_cells": 100,
+      "weighted_calls": 0.0,
+      "rows": 8784,
+      "raw_km2": 60497,
+      "land_km2": 59206,
+      "weather_file": "data/precomputed/weather/weather_electricity_NO1_2024-01-01_2024-12-31_c100_land3035_hourly_cds.parquet",
+      "points_file": "data/cache/points_electricity_NO1_c100_land3035.parquet",
+      "downloaded_at": "2026-11-15T15:08:14+00:00"
+    },
+    {
+      "region": "NO2",
+      "kind": "electricity",
+      "start": "2024-01-01",
+      "end": "2024-12-31",
+      "resolution": "hourly",
+      "source": "cds",
+      "land": true,
+      "sample_crs": 3035,
+      "pool_points": 1000,
+      "available_cells": 125,
+      "requested_cells": 100,
+      "weighted_calls": 0.0,
+      "rows": 8784,
+      "raw_km2": 68484,
+      "land_km2": 47670,
+      "weather_file": "data/precomputed/weather/weather_electricity_NO2_2024-01-01_2024-12-31_c100_land3035_hourly_cds.parquet",
+      "points_file": "data/cache/points_electricity_NO2_c100_land3035.parquet",
+      "downloaded_at": "2026-11-15T15:08:24+00:00"
+    },
+    {
+      "region": "NO3",
+      "kind": "electricity",
+      "start": "2024-01-01",
+      "end": "2024-12-31",
+      "resolution": "hourly",
+      "source": "cds",
+      "land": true,
+      "sample_crs": 3035,
+      "pool_points": 1000,
+      "available_cells": 189,
+      "requested_cells": 100,
+      "weighted_calls": 0.0,
+      "rows": 8784,
+      "raw_km2": 104005,
+      "land_km2": 65405,
+      "weather_file": "data/precomputed/weather/weather_electricity_NO3_2024-01-01_2024-12-31_c100_land3035_hourly_cds.parquet",
+      "points_file": "data/cache/points_electricity_NO3_c100_land3035.parquet",
+      "downloaded_at": "2026-11-15T15:08:37+00:00"
+    },
+    {
+      "region": "NO4",
+      "kind": "electricity",
+      "start": "2024-01-01",
+      "end": "2024-12-31",
+      "resolution": "hourly",
+      "source": "cds",
+      "land": true,
+      "sample_crs": 3035,
+      "pool_points": 1000,
+      "available_cells": 351,
+      "requested_cells": 100,
+      "weighted_calls": 0.0,
+      "rows": 8784,
+      "raw_km2": 203043,
+      "land_km2": 115974,
+      "weather_file": "data/precomputed/weather/weather_electricity_NO4_2024-01-01_2024-12-31_c100_land3035_hourly_cds.parquet",
+      "points_file": "data/cache/points_electricity_NO4_c100_land3035.parquet",
+      "downloaded_at": "2026-11-15T15:08:57+00:00"
+    },
+    {
+      "region": "NO5",
+      "kind": "electricity",
+      "start": "2024-01-01",
+      "end": "2024-12-31",
+      "resolution": "hourly",
+      "source": "cds",
+      "land": true,
+      "sample_crs": 3035,
+      "pool_points": 1000,
+      "available_cells": 94,
+      "requested_cells": 94,
+      "weighted_calls": 0.0,
+      "rows": 8784,
+      "raw_km2": 33215,
+      "land_km2": 27503,
+      "weather_file": "data/precomputed/weather/weather_electricity_NO5_2024-01-01_2024-12-31_c100_land3035_hourly_cds.parquet",
+      "points_file": "data/cache/points_electricity_NO5_c100_land3035.parquet",
+      "downloaded_at": "2026-11-15T15:09:03+00:00"
+    },
+    {
+      "region": "East",
+      "kind": "precipitation",
+      "start": "2024-01-01",
+      "end": "2024-12-31",
+      "resolution": "hourly",
+      "source": "cds",
+      "land": true,
+      "sample_crs": 3035,
+      "pool_points": 1000,
+      "available_cells": 298,
+      "requested_cells": 100,
+      "weighted_calls": 0.0,
+      "rows": 8784,
+      "raw_km2": 138068,
+      "land_km2": 119614,
+      "weather_file": "data/precomputed/weather/weather_precipitation_East_2024-01-01_2024-12-31_c100_land3035_hourly_cds.parquet",
+      "points_file": "data/cache/points_precipitation_East_c100_land3035.parquet",
+      "downloaded_at": "2026-11-15T15:09:08+00:00"
+    },
+    {
+      "region": "West",
+      "kind": "precipitation",
+      "start": "2024-01-01",
+      "end": "2024-12-31",
+      "resolution": "hourly",
+      "source": "cds",
+      "land": true,
+      "sample_crs": 3035,
+      "pool_points": 1000,
+      "available_cells": 137,
+      "requested_cells": 100,
+      "weighted_calls": 0.0,
+      "rows": 8784,
+      "raw_km2": 75079,
+      "land_km2": 45779,
+      "weather_file": "data/precomputed/weather/weather_precipitation_West_2024-01-01_2024-12-31_c100_land3035_hourly_cds.parquet",
+      "points_file": "data/cache/points_precipitation_West_c100_land3035.parquet",
+      "downloaded_at": "2026-11-15T15:09:14+00:00"
+    },
+    {
+      "region": "North",
+      "kind": "precipitation",
+      "start": "2024-01-01",
+      "end": "2024-12-31",
+      "resolution": "hourly",
+      "source": "cds",
+      "land": true,
+      "sample_crs": 3035,
+      "pool_points": 1000,
+      "available_cells": 398,
+      "requested_cells": 100,
+      "weighted_calls": 0.0,
+      "rows": 8784,
+      "raw_km2": 256096,
+      "land_km2": 150365,
+      "weather_file": "data/precomputed/weather/weather_precipitation_North_2024-01-01_2024-12-31_c100_land3035_hourly_cds.parquet",
+      "points_file": "data/cache/points_precipitation_North_c100_land3035.parquet",
+      "downloaded_at": "2026-11-15T15:09:21+00:00"
     }
   ]
 }

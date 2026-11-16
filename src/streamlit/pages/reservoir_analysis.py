@@ -1,7 +1,7 @@
 """Reservoir analysis page: STL decomposition and spectrogram in two tabs.
 
 CRS: none. The filling series is keyed by area, not by coordinate — see
-``docs/crs.md``.
+``docs/CA3/crs.md``.
 """
 
 from __future__ import annotations
@@ -10,9 +10,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
-from src.ca3.analysis import spectrogram_analysis, stl_analysis
-from src.ca3.data import filling_series
-from src.utils.magasin import AREA_TYPES, area_numbers_for, load_all
+from src.utils.analysis import spectrogram_analysis, stl_analysis
+from src.utils.magasin import AREA_TYPES, area_numbers_for, filling_series, load_all
 
 
 def render_area_selector() -> tuple[str, int]:
@@ -98,6 +97,18 @@ def render_stl(series) -> None:
             "window must be longer than the 52-week period. **Robust** fitting "
             "reduces the influence of exceptional weeks such as drought years."
         )
+        st.write(
+            "**Why these defaults.** **13 weeks ≈ a quarter-year** for the "
+            "seasonal smoother: long enough to smooth the annual shape within a "
+            "year, short enough to let it drift between years. **101 weeks ≈ two "
+            "years** for the trend: it separates multi-year storage trends from "
+            "the annual cycle, and it must stay clear of the 52-week period or "
+            "the two components absorb each other (the function raises an error "
+            "if it does not). **Robust fitting** is on because single weeks can "
+            "move the series violently — early June 1995 rose 12.5 percentage "
+            "points in one week, late June 2020 11.0 — and without robust "
+            "fitting one such week bends the trend for its whole window."
+        )
 
 
 def render_spectrogram(series) -> None:
@@ -156,6 +167,17 @@ def render_spectrogram(series) -> None:
             "cycle; weaker bands above it are harmonics because the reservoir "
             "fills faster than it is drawn down. A longer window sharpens the "
             "frequency axis; a shorter window sharpens the time axis."
+        )
+        st.write(
+            "**Why these defaults.** **52 weeks = one year** is the shortest "
+            "window that resolves the annual cycle: the frequency resolution is "
+            "1/52 ≈ 0.0192 cycles/week, exactly the band you are looking for, "
+            "and a shorter window blurs that band into the trend. **26 weeks of "
+            "overlap = 50 %**: frequency resolution depends only on the window, "
+            "so the overlap buys a smoother time axis at the cost of compute. "
+            "The axis stops at **0.1 cycles/week** — one cycle per ten weeks — "
+            "because faster variation in a weekly reservoir series is noise that "
+            "would flatten the bands that matter."
         )
 
 

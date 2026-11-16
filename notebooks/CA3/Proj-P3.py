@@ -1,34 +1,38 @@
+# ---
+# jupyter:
+#   jupytext:
+#     text_representation:
+#       extension: .py
+#       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.19.6
+#   kernelspec:
+#     display_name: Python 3 (ipykernel)
+#     language: python
+#     name: python3
+# ---
+
 # %% [markdown]
 # # IND320 Project P3 — Data quality
 #
 # Author: Robin Torjussen Egede  
 # [Streamlit app](https://ind320-hush.streamlit.app) · [Repository](https://github.com/Kunii/IND320-hush/)  
-# Course: IND320-1 26H Data to decision, NMBU
 #
-# This notebook documents the CA3 work. It follows the assignment sections:
-# STL and spectrogram on the reservoir filling series, 1000-location sampling
-# of the NVE Atlas areas, ERA5 download for NO3 in 2024, and SPC/LOF quality
-# checks on the daily area-mean temperature.
+# The four analysis functions are shared with the Streamlit app in
+# `src/utils/analysis.py`; this notebook is the executed hand-in.
 #
-# This notebook is generated from `notebooks/CA3/Proj-P3.py`, which holds the
-# analysis functions; the script and the notebook share one source.
+# ### Disclaimer
 #
-# ### Pipeline
-#
-# 1. Magasinstatistikk (degree of filling) → STL + spectrogram
-# 2. NVE Atlas areas → 1000 sampled locations per area
-# 3. open-meteo ERA5 reanalysis → hourly weather per area
-# 4. Daily area means → SPC/DCT and LOF quality checks
-#
-# ### Usage
-#
-# ```bash
-# .venv/bin/python notebooks/CA3/Proj-P3.py
-# ```
-
+# I got severely ill the week leading up to the deadline (and still ill as of
+# 2026-11-10 at 23:50). I was not in a capable state to do any real
+# "brain-activity", nor do the work at a sufficient level or to the quality I
+# wanted. Therefore this hand-in is rather lack-luster, and quite frankly
+# "AI-slop".
 
 # %% [markdown]
 # ## Log
+#
+# The implementation was AI-drafted; I directed the work and reviewed the code.
 #
 # I started from the P2 repository and the P2 Streamlit app. The first step was
 # to convert the Canvas assignment page to Markdown and turn every bullet into a
@@ -51,17 +55,18 @@
 #
 # The ERA5 download was the most demanding part. Open-meteo accepts several
 # coordinates per request, but the free tier weights requests by locations and
-# time span. I batch eight locations per request, pause between requests and
-# retry on 429/5xx. The hourly response is kept for the NO3 2024 retrieval and reduced to
+# time span. The downloader batches eight locations per request, pauses between requests
+# and retries on 429/5xx. The hourly response is kept for the NO3 2024 retrieval and reduced to
 # daily area means for the SPC/LOF analysis, so 1000 locations do not
 # accumulate millions of rows in the analysis.
 #
-# For the analyses I implemented STL, a spectrogram, DCT-based SPC and LOF as
+# For the analyses, STL, a spectrogram, DCT-based SPC and LOF were drafted as
 # functions with parameters and sensible defaults. The SPC limits follow the
 # seasonal baseline from the low-pass part of the DCT, with a robust MAD-based
-# sigma; the SATV is not plotted. The default is ±2σ because ±3σ flagged no
-# days on daily area-mean temperature. LOF uses the 1% contamination required
-# by the task.
+# sigma; the SATV is not plotted. The default is 12 cycles/year and ±3σ, the
+# conventional control limit; the ±2σ sensitivity is reported in §6. LOF uses
+# the 1% contamination required by the task and compares each day with its
+# neighbours in time.
 #
 # Testing was done with a small self-test module and with the executed cells in
 # this notebook. The tests check that STL reconstructs the series, that the
@@ -70,28 +75,20 @@
 # the requested proportion.
 #
 # On the Streamlit side, the P2 app already provided the area selectors, the
-# cached NVE loader and the MongoDB page. I built the two CA3 pages on that
+# cached NVE loader and the MongoDB page. The two CA3 pages were built on that
 # structure: a local selector that follows the Magasinstatistikk choice, a
 # weather step that reads the precomputed ERA5 caches, and two tabbed pages
-# (STL | Spectrogram and SPC | LOF). The main lesson from P2 is that the app must
-# not download large datasets at startup, so the weather data are precomputed and
-# read from disk.
-
+# (STL | Spectrogram and SPC | LOF).
 
 # %% [markdown]
 # ## AI usage
 #
-# I used an AI coding assistant as a pair-programming tool. It drafted
-# docstrings and comments, suggested the DCT/SPC formulation and the geopandas
-# sampling approach, and helped write the self-tests. I reviewed every function,
-# ran the notebook end-to-end, and chose the final parameters (the SPC sigma, the
-# open-meteo batching and the 1000-point sampling) myself. The analysis logic,
-# data choices and conclusions are my own.
-
+# This notebook was produced with an AI coding agent; no code was written by hand.
+#
+# **Why:** I was ill and not in a capable state to do the work myself.
 
 # %%
 # %matplotlib inline
-
 
 # %%
 from __future__ import annotations
@@ -110,11 +107,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import requests
-from scipy.fft import dct, idct
-from scipy.signal import spectrogram
-from sklearn.neighbors import LocalOutlierFactor
-from sklearn.preprocessing import StandardScaler
-from statsmodels.tsa.seasonal import STL
+import sys
+
+# Locate the repository root by walking upwards until pyproject.toml is
+# found. This keeps the paths valid whether the notebook is run from
+# notebooks/CA3 or from the repository root.
+REPO_ROOT = next(
+    path
+    for path in [Path.cwd(), *Path.cwd().parents]
+    if (path / "pyproject.toml").exists()
+)
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from IPython.display import display
 
 from src.utils.magasin import (
     PARQUET_CACHE,
@@ -122,11 +128,11 @@ from src.utils.magasin import (
     fetch_magasinstatistikk,
 )
 
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
 
-# %%
-REPO_ROOT = Path(__file__).resolve().parents[2]
 CACHE_DIR = REPO_ROOT / "data" / "cache"
-
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # Magasinstatistikk area used for the STL and spectrogram analysis.
@@ -201,11 +207,11 @@ API_MAX_ATTEMPTS = 6
 API_BACKOFF_SECONDS = 5.0
 
 # Analysis parameters, all with sensible defaults as required by the task.
-DCT_CUTOFF_FRACTION = 0.02  # share of DCT coefficients treated as "seasonal"
-# Daily area-mean temperature is close to Gaussian after the DCT high-pass, so
-# 3 sigma flags no days at all in a normal year. 2 sigma keeps the default
-# informative while the parameter stays adjustable for other series.
-SPC_STD_DEVIATIONS = 2.0  # robust sigma multiplier for the SPC bounds
+# The DCT cut-off is expressed in cycles per year: 12 removes variations
+# slower than about one month, leaving the seasonal baseline. 3 sigma is the
+# conventional SPC control limit; the 2 sigma sensitivity is reported in §6.
+SPC_CUTOFF_CYCLES_PER_YEAR = 12.0
+SPC_STD_DEVIATIONS = 3.0
 LOF_CONTAMINATION = 0.01  # proportion of outliers (1%)
 STL_PERIOD = 52  # weekly data -> yearly season
 STL_SEASONAL = 13
@@ -221,6 +227,24 @@ REFRESH_WEATHER = False
 
 ERA5_URL = "https://archive-api.open-meteo.com/v1/archive"
 
+# %%
+# The analysis functions are imported from the module shared with the app.
+from src.utils.analysis import (
+    lof_outliers,
+    spectrogram_analysis,
+    spc_outliers,
+    stl_analysis,
+)
+
+# %%
+# Print the versions and paths used by this run so the output is reproducible.
+import shapely
+
+print(f"Repository root: {REPO_ROOT}")
+print(f"pandas {pd.__version__} | geopandas {gpd.__version__} | shapely {shapely.__version__}")
+print(f"magasinstatistikk cache: {PARQUET_CACHE.relative_to(REPO_ROOT)}")
+print(f"weather cache directory: {CACHE_DIR.relative_to(REPO_ROOT)}")
+
 
 # %% [markdown]
 # ## 1. Reservoir filling data
@@ -230,7 +254,6 @@ ERA5_URL = "https://archive-api.open-meteo.com/v1/archive"
 # aggregate (`NO`, area `0`) because it is one complete series. `filling_series`
 # selects the area, removes duplicate weeks, resamples to a regular Monday index
 # and interpolates gaps, which STL and the spectrogram require.
-
 
 # %%
 def require_columns(frame: pd.DataFrame, columns: Iterable[str], name: str) -> None:
@@ -244,19 +267,6 @@ def require_columns(frame: pd.DataFrame, columns: Iterable[str], name: str) -> N
 def cache_path(name: str) -> Path:
     """Return a parquet cache path under ``data/cache``."""
     return CACHE_DIR / f"{name}.parquet"
-
-
-# %%
-def robust_sigma(values: np.ndarray) -> float:
-    """
-    Return a robust standard-deviation estimate.
-
-    The MAD is scaled by 1.4826 so that it matches the standard deviation for
-    normally distributed data, which makes the SPC limits interpretable.
-    """
-    median = np.median(values)
-    mad = np.median(np.abs(values - median))
-    return float(1.4826 * mad)
 
 
 # %%
@@ -308,6 +318,26 @@ def filling_series(
     return series
 
 
+# %% {"tags": ["run"]}
+# Load the NVE history and build the weekly filling series used by STL and
+# the spectrogram. The first run may fetch the API; later runs use the cache.
+df_mag = load_magasinstatistikk()
+display(df_mag.head())
+
+filling = filling_series(df_mag, area_type="NO", area_number=0)
+print(f"Filling series: {len(filling)} weekly observations, "
+      f"{filling.index.min().date()} to {filling.index.max().date()}")
+print(f"Missing values after resampling: {int(filling.isna().sum())}")
+
+# Plot the series so the annual cycle and the multi-year variations are visible.
+fig, ax = plt.subplots(figsize=(14, 4))
+ax.plot(filling.index, filling, linewidth=1.0)
+ax.set_title("Weekly reservoir filling, Norway (NO 0)")
+ax.set_xlabel("Date")
+ax.set_ylabel("Filling degree")
+ax.grid(True, alpha=0.3)
+fig.tight_layout()
+
 # %% [markdown]
 # ## 2. Seasonal-Trend decomposition using LOESS (STL)
 #
@@ -317,57 +347,23 @@ def filling_series(
 # downweights unusual weeks. The function returns both the figure and the
 # `STLResult` so the components can be inspected.
 
+# %% {"tags": ["run"]}
+# STL with the defaults from the configuration section.
+stl_fig, stl_result = stl_analysis(filling)
+display(stl_fig)
+plt.close(stl_fig)
 
-# %%
-def stl_analysis(
-    series: pd.Series,
-    period: int = STL_PERIOD,
-    seasonal: int = STL_SEASONAL,
-    trend: int = STL_TREND,
-    robust: bool = STL_ROBUST,
-) -> tuple[plt.Figure, Any]:
-    """
-    Decompose a series with STL and return the figure and the result object.
+print(f"STL period={STL_PERIOD} weeks, seasonal={STL_SEASONAL}, "
+      f"trend={STL_TREND}, robust={STL_ROBUST}")
+print(f"Trend range: {stl_result.trend.min():.3f} to {stl_result.trend.max():.3f}")
+print(f"Seasonal amplitude: {stl_result.seasonal.max() - stl_result.seasonal.min():.3f}")
+print(f"Residual standard deviation: {stl_result.resid.std():.3f}")
 
-    ``period``, ``seasonal``, ``trend`` and ``robust`` are parameters so the
-    caller can explore them; the defaults suit weekly data.
-    """
-    if len(series) < 2 * period:
-        raise ValueError(
-            f"Need at least {2 * period} observations for STL, got {len(series)}"
-        )
-    if seasonal % 2 == 0:
-        raise ValueError("seasonal must be an odd integer")
-    if trend % 2 == 0 or trend <= period:
-        raise ValueError("trend must be odd and larger than period")
-
-    result = STL(
-        series.to_numpy(),
-        period=period,
-        seasonal=seasonal,
-        trend=trend,
-        robust=robust,
-    ).fit()
-
-    fig, axes = plt.subplots(4, 1, figsize=(14, 10), sharex=True)
-    panels = (
-        ("Observed", series.to_numpy()),
-        ("Trend", result.trend),
-        ("Seasonal", result.seasonal),
-        ("Residual", result.resid),
-    )
-    for ax, (title, values) in zip(axes, panels):
-        ax.plot(series.index, values, linewidth=1.0)
-        ax.set_ylabel(title)
-        ax.grid(True, alpha=0.3)
-
-    axes[0].set_title(
-        f"STL decomposition of {series.name} "
-        f"(period={period}, seasonal={seasonal}, trend={trend}, robust={robust})"
-    )
-    fig.tight_layout()
-    return fig, result
-
+# %% [markdown]
+# **Findings.** The trend moves between about 0.50 and 0.74 over the thirty
+# years, while the annual cycle stays stable. The largest residuals are in late
+# summer and autumn 2006, a dry period, and at the very end of the series, where
+# LOESS has data on one side only.
 
 # %% [markdown]
 # ## 3. Spectrogram
@@ -378,62 +374,22 @@ def stl_analysis(
 # all of the hydrological signal is below that; pass `max_frequency=None` for
 # the full 0–0.5 range.
 
+# %% {"tags": ["run"]}
+# Spectrogram of the same filling series.
+spec_fig, spec_freqs, spec_times, spec_power = spectrogram_analysis(filling)
+display(spec_fig)
+plt.close(spec_fig)
 
-# %%
-def spectrogram_analysis(
-    series: pd.Series,
-    window: int = SPECTROGRAM_WINDOW,
-    overlap: int = SPECTROGRAM_OVERLAP,
-    max_frequency: float | None = 0.1,
-) -> tuple[plt.Figure, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Compute and plot a spectrogram of a series.
+annual = 1 / STL_PERIOD
+print(f"Frequency resolution: {spec_freqs[1]:.4f} cycles/week")
+print(f"Annual cycle expected at {annual:.4f} cycles/week")
+print(f"Spectrogram shape: {spec_power.shape} (frequency bins x segments)")
 
-    ``window`` is the segment length in samples (weeks) and ``overlap`` the
-    number of samples shared by neighbouring segments. ``max_frequency`` limits
-    the frequency axis to the band where the annual and semi-annual cycles
-    live; pass ``None`` for the full 0-0.5 cycles/week range. Returns the
-    figure and ``(frequencies, segment_times, power)``.
-    """
-    if window <= 0 or window > len(series):
-        raise ValueError("window must be positive and at most the series length")
-    if not 0 <= overlap < window:
-        raise ValueError("overlap must be in [0, window)")
 
-    values = series.to_numpy(dtype=float)
-    frequencies, times, power = spectrogram(
-        values, fs=1.0, nperseg=window, noverlap=overlap, detrend="linear"
-    )
-
-    # scipy reports segment positions in samples. For a DatetimeIndex, map
-    # them back to dates so the horizontal axis is readable.
-    if isinstance(series.index, pd.DatetimeIndex) and len(series.index) > 1:
-        step = series.index.to_series().diff().median()
-        x = series.index[0] + pd.to_timedelta(times * step.total_seconds(), unit="s")
-        xlabel = "Date"
-    else:
-        x = times
-        xlabel = "Sample index"
-
-    fig, ax = plt.subplots(figsize=(14, 5))
-    mesh = ax.pcolormesh(
-        x,
-        frequencies,
-        10 * np.log10(power + np.finfo(float).eps),
-        shading="auto",
-    )
-    fig.colorbar(mesh, ax=ax, label="Power [dB]")
-    if max_frequency is not None:
-        ax.set_ylim(0, min(max_frequency, 0.5))
-    ax.set_title(
-        f"Spectrogram of {series.name} "
-        f"(window={window} weeks, overlap={overlap} weeks)"
-    )
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel("Frequency [cycles/week]")
-    fig.tight_layout()
-    return fig, frequencies, times, power
-
+# %% [markdown]
+# **Findings.** The annual band at about 0.019 cycles/week dominates the whole
+# period; the weaker band at twice that frequency is the semi-annual harmonic.
+# The 0–0.1 cycles/week window makes both visible.
 
 # %% [markdown]
 # ## 4. NVE Atlas areas and 1000-point sampling
@@ -471,12 +427,11 @@ def spectrogram_analysis(
 # 3.3× more points per km² in its northern half than in its southern half, so the
 # area mean leans slightly north and cold. The app's precomputed series samples in
 # EPSG:3035 (equal-area, land-clipped), so the two are deliberately different
-# estimators. `docs/crs.md` records the measurements and the rules.
+# estimators. `docs/CA3/crs.md` records the measurements and the rules.
 #
 # Geopandas' `sample_points` respects MultiPolygons and holes, so the assignment's
 # 1000 locations per region land where they should within the sampling space; the
 # table below checks every region.
-
 
 # %%
 def read_area_shapefile(path: Path) -> gpd.GeoDataFrame:
@@ -490,7 +445,7 @@ def read_area_shapefile(path: Path) -> gpd.GeoDataFrame:
     meaningless — reproject to 25833 (source, conformal) or 3035 (equal-area).
 
     The official ``NVE_Region`` download has no ``.cpg`` sidecar, so GDAL
-    assumes ISO-8859-1 and ``REGION`` for Region Øst arrives as ``'RÃ\\x98'``
+    assumes ISO-8859-1 and ``REGION`` for Region Øst arrives as ``'RÃ\x98'``
     instead of ``'RØ'``. That is not cosmetic: the East group is
     ``("RS", "RØ")``, so a mismatched code silently drops a whole region.
     Read as UTF-8 first and fall back only if the file really is latin-1.
@@ -502,7 +457,6 @@ def read_area_shapefile(path: Path) -> gpd.GeoDataFrame:
     return frame.to_crs("EPSG:4326")
 
 
-# %%
 def local_area_shapefile(layer: dict[str, Any]) -> Path | None:
     """Return the first existing shapefile candidate for one layer."""
     for candidate in layer["shapefile"]:
@@ -512,7 +466,6 @@ def local_area_shapefile(layer: dict[str, Any]) -> Path | None:
     return None
 
 
-# %%
 def resolve_service_layer_id(url: str, layer_name: str) -> int:
     """
     Look up an ArcGIS layer id by name, falling back to the pinned id.
@@ -533,7 +486,6 @@ def resolve_service_layer_id(url: str, layer_name: str) -> int:
     return int(pinned)
 
 
-# %%
 def download_area_layer(
     kind: str, refresh: bool = REFRESH_AREAS
 ) -> gpd.GeoDataFrame:
@@ -647,7 +599,7 @@ def sample_area_points(
     bias in the area mean. ``precompute_weather.py`` avoids it by sampling in
     EPSG:3035 (equal-area) and clipping to land; changing this function to do
     the same would change every reported coordinate, so the notebook keeps the
-    degree sampler and documents it. ``docs/crs.md`` has the numbers.
+    degree sampler and documents it. ``docs/CA3/crs.md`` has the numbers.
 
     Returns a DataFrame with WGS84 ``lon`` and ``lat`` columns, ready for
     open-meteo, which takes EPSG:4326 by definition.
@@ -675,45 +627,64 @@ def area_sample_name(kind: str, name: str, count: int = POINTS_PER_REGION) -> st
     return f"points_{kind}_{name}_{count}"
 
 
-# %%
-def region_kind(region_id: str) -> str:
-    """
-    Infer the NVE layer kind from a region identifier.
+# %% {"tags": ["run"]}
+# Load both NVE Atlas layers. The committed shapefiles under
+# data/shapefiles/atlas_nve/ are used when present; otherwise the GeoJSON is
+# downloaded from the ArcGIS REST endpoint (resolving the layer by name) and
+# cached under data/cache.
+electricity_layer = download_area_layer("electricity")
+precipitation_layer = download_area_layer("precipitation")
 
-    Electricity areas are ``NO1``..``NO5``; the grouped precipitation regions
-    are ``East``, ``West`` and ``North``. Electricity codes are compared
-    without spaces and case so ``"NO 3"`` and ``"no3"`` both work.
-    """
-    code = normalise_code(region_id)
-    if code in {normalise_code(value) for value in ELECTRICITY_AREAS}:
-        return "electricity"
-    if region_id in PRECIPITATION_GROUPS:
-        return "precipitation"
-    raise KeyError(
-        f"Unknown region {region_id!r}; use one of "
-        f"{list(ELECTRICITY_AREAS)} or {list(PRECIPITATION_GROUPS)}"
-    )
+print(f"Electricity areas: {len(electricity_layer)} features")
+print(f"Precipitation regions: {len(precipitation_layer)} features")
+display(precipitation_layer[["REGION", "REGIONNAVN"]])
+display(electricity_layer[["budomr"]].sort_values("budomr"))
 
+# %% {"tags": ["run"]}
+# Sample 1000 locations in every region and summarise the result.
+# This is local geometry work; it does not call the weather API.
+sampling_rows = []
+for kind, names in (
+    ("electricity", ELECTRICITY_AREAS),
+    ("precipitation", tuple(PRECIPITATION_GROUPS)),
+):
+    layer = electricity_layer if kind == "electricity" else precipitation_layer
+    for name in names:
+        geometry = select_area_geometry(layer, kind, name)
+        points = sample_area_points(geometry, count=POINTS_PER_REGION)
+        sampling_rows.append(
+            {
+                "layer": kind,
+                "region": name,
+                "points": len(points),
+                "lon_min": round(float(points["lon"].min()), 2),
+                "lon_max": round(float(points["lon"].max()), 2),
+                "lat_min": round(float(points["lat"].min()), 2),
+                "lat_max": round(float(points["lat"].max()), 2),
+            }
+        )
 
-# %%
-def weather_cache_name(
-    kind: str,
-    name: str,
-    start_date: str,
-    end_date: str,
-    count: int,
-    resolution: str = "daily",
-) -> str:
-    """
-    Return the cache name for one area, interval, sampling density and resolution.
+sampling_table = pd.DataFrame(sampling_rows)
+display(sampling_table)
+assert (sampling_table["points"] == POINTS_PER_REGION).all()
+print(f"All {len(sampling_table)} regions sampled with {POINTS_PER_REGION} points.")
 
-    ``count`` is part of the name on purpose: a cheap smoke test with 24
-    locations must never be reused as the 1000-location production result.
-    ``resolution`` is omitted for the original daily cache (so it keeps its
-    name) and appended for hourly output.
-    """
-    base = f"weather_{kind}_{name}_{start_date}_{end_date}_{count}"
-    return base if resolution == "daily" else f"{base}_{resolution}"
+# %% {"tags": ["run"]}
+# Show the NO3 polygon and its sampled locations on a simple map.
+no3_geometry = select_area_geometry(electricity_layer, "electricity", "NO3")
+no3_points = sample_area_points(no3_geometry, count=POINTS_PER_REGION)
+
+fig, ax = plt.subplots(figsize=(7, 8))
+gpd.GeoSeries([no3_geometry], crs="EPSG:4326").plot(
+    ax=ax, facecolor="none", edgecolor="black", linewidth=1.0
+)
+ax.scatter(no3_points["lon"], no3_points["lat"], s=2, alpha=0.5, color="tab:blue")
+ax.set_title(f"NO3 boundary and {len(no3_points)} sampled locations")
+ax.set_xlabel("Longitude")
+ax.set_ylabel("Latitude")
+ax.set_aspect("equal")
+ax.grid(True, alpha=0.3)
+fig.tight_layout()
 
 
 # %% [markdown]
@@ -730,7 +701,6 @@ def weather_cache_name(
 # The call below uses 1000 locations for NO3 for the whole of 2024. Open-meteo
 # weights requests by locations and time span, so the download is batched and
 # paced; the free tier allows 10,000 calls per day.
-
 
 # %%
 def _resample_hourly(frame: pd.DataFrame, rule: str) -> pd.DataFrame:
@@ -876,6 +846,49 @@ def area_mean(weather: pd.DataFrame) -> pd.DataFrame:
 
 
 # %%
+def region_kind(region_id: str) -> str:
+    """
+    Infer the NVE layer kind from a region identifier.
+
+    Electricity areas are ``NO1``..``NO5``; the grouped precipitation regions
+    are ``East``, ``West`` and ``North``. Electricity codes are compared
+    without spaces and case so ``"NO 3"`` and ``"no3"`` both work.
+    """
+    code = normalise_code(region_id)
+    if code in {normalise_code(value) for value in ELECTRICITY_AREAS}:
+        return "electricity"
+    if region_id in PRECIPITATION_GROUPS:
+        return "precipitation"
+    raise KeyError(
+        f"Unknown region {region_id!r}; use one of "
+        f"{list(ELECTRICITY_AREAS)} or {list(PRECIPITATION_GROUPS)}"
+    )
+
+
+# %%
+def weather_cache_name(
+    kind: str,
+    name: str,
+    start_date: str,
+    end_date: str,
+    count: int,
+    resolution: str = "daily",
+) -> str:
+    """
+    Return the cache name for one area, interval and sampling density.
+
+    ``count`` is part of the name on purpose: a cheap smoke test with 24
+    locations must never be reused as the 1000-location production result.
+    ``resolution`` is omitted for the original daily cache (so it keeps its
+    name) and appended for hourly output. CDS caches are named by
+    ``src.utils.era5_cache.cache_name`` instead, which always encodes the
+    resolution and the source.
+    """
+    base = f"weather_{kind}_{name}_{start_date}_{end_date}_{count}"
+    return base if resolution == "daily" else f"{base}_{resolution}"
+
+
+# %%
 def download_region_weather(
     region_id: str,
     start_date: str,
@@ -884,6 +897,7 @@ def download_region_weather(
     count: int = POINTS_PER_REGION,
     refresh: bool = REFRESH_WEATHER,
     resolution: str = "daily",
+    source: str = "open-meteo",
 ) -> pd.DataFrame:
     """
     Download ERA5 reanalysis for one region and a date interval.
@@ -911,6 +925,15 @@ def download_region_weather(
         ``"hourly"`` keeps the raw hourly area means; ``"daily"`` (default)
         aggregates temperature to a daily mean and precipitation to a daily
         sum for the existing SPC/LOF analysis.
+    source:
+        ``"open-meteo"`` (default) queries the archive API. ``"cds"`` reads the
+        same values from the Copernicus Climate Data Store: one GRIB request
+        per year for the whole country box, then the same per-point cell and
+        elevation translation, rounded per point to the API's one decimal
+        (parity mode). Measured 2024, NO3, 1 000 points: temperature within
+        0.015 K, precipitation identical, so either source can be used for the
+        analysis. CDS needs ``[cdsapi]`` in ``.secrets/secrets.toml``; the
+        caches carry a ``_cds`` suffix and never overwrite an open-meteo one.
 
     Returns
     -------
@@ -919,15 +942,23 @@ def download_region_weather(
     """
     if resolution not in {"hourly", "daily"}:
         raise ValueError("resolution must be 'hourly' or 'daily'")
+    if source not in {"open-meteo", "cds"}:
+        raise ValueError("source must be 'open-meteo' or 'cds'")
     start = pd.Timestamp(start_date).date().isoformat()
     end = pd.Timestamp(end_date).date().isoformat()
     if pd.Timestamp(start) > pd.Timestamp(end):
         raise ValueError("start_date must not be after end_date")
 
     kind = kind or region_kind(region_id)
-    cache = cache_path(
-        weather_cache_name(kind, region_id, start, end, count, resolution)
-    )
+    if source == "cds":
+        # The writer owns the CDS file name: it always encodes the resolution
+        # and the ``_cds`` suffix, so a CDS cache can never shadow the
+        # open-meteo one.
+        from src.utils.era5_cache import cache_name as cds_cache_name
+
+        cache = cache_path(cds_cache_name(kind, region_id, start, end, str(count), resolution))
+    else:
+        cache = cache_path(weather_cache_name(kind, region_id, start, end, count, resolution))
     time_column = "timestamp" if resolution == "hourly" else "date"
     if cache.exists() and not refresh:
         print(f"  using cache {cache.name}")
@@ -947,6 +978,31 @@ def download_region_weather(
         points.to_parquet(points_cache, index=False)
         print(f"  sampled {len(points)} locations -> {points_cache.name}")
 
+    if source == "cds":
+        # One GRIB request per year for the documented country box (the box the
+        # parity was measured on), then the same per-point translation as the
+        # API, rounded per point. Imported here so the notebook's open-meteo
+        # path keeps working without eccodes/cdsapi installed.
+        from src.utils.cds_era5 import DEFAULT_AREA
+        from src.utils.era5_cache import build_area_cache
+
+        path = build_area_cache(
+            kind,
+            region_id,
+            start,
+            end,
+            mode="points",
+            points=points,
+            parity=True,
+            resolution=resolution,
+            area=list(DEFAULT_AREA),
+            overwrite=refresh,
+        )
+        frame = pd.read_parquet(path)
+        frame[time_column] = pd.to_datetime(frame[time_column])
+        print(f"  using CDS cache {path.name}")
+        return frame.set_index(time_column)
+
     weather = fetch_era5(
         points,
         start_date=start,
@@ -961,274 +1017,140 @@ def download_region_weather(
     return area
 
 
+# %% {"tags": ["run"]}
+# Apply the download function to NO3 for 2024 with the full 1000 locations.
+# resolution="hourly" keeps the raw hourly area means required by the task.
+# The first run makes about 125 batched requests; later runs read the cache.
+hourly_no3 = download_region_weather(
+    "NO3",
+    "2024-01-01",
+    "2024-12-31",
+    count=POINTS_PER_REGION,
+    resolution="hourly",
+)
+display(hourly_no3.head())
+print(f"Hourly rows: {len(hourly_no3):,}")
+print(f"Locations per hour: {sorted(hourly_no3['point_count'].unique())}")
+
+# Daily means for the precipitation, SPC and LOF sections below.
+daily_no3 = hourly_no3.resample("1D").agg(
+    {"temperature_2m": "mean", "precipitation": "sum", "point_count": "mean"}
+)
+daily_no3.index.name = "date"
+print(f"Daily rows: {len(daily_no3)}")
+display(daily_no3[["temperature_2m", "precipitation"]].describe())
+
 # %% [markdown]
 # ## 6. Average precipitation and SPC outliers
 #
 # The first plot is the daily area-mean precipitation required by the
-# assignment. The SPC analysis follows the teacher's clarification that the
-# DCT/SPC step should use temperature; the same function accepts any series.
+# assignment. The assignment text names precipitation for the DCT/SPC step; the
+# teacher's clarification names temperature. Both series are therefore analysed
+# with the same function, precipitation first, so neither reading is lost.
 #
 # The DCT high-pass removes the low-frequency seasonal part to form the
-# seasonally adjusted temperature variation (SATV). The control limits are
+# seasonally adjusted variations (SATV). The control limits are
 #
 #     baseline + median(SATV) ± k · σ_robust(SATV)
 #
 # where `baseline` is the low-pass part of the series and `σ_robust` is the
-# MAD-based standard deviation of the SATV. Only the observed series, the
+# MAD-based standard deviation of the SATV. The default cut-off is 12 cycles/year
+# (about one month) and the default width is ±3σ, the conventional SPC control
+# limit; the ±2σ sensitivity is reported below. Only the observed series, the
 # baseline and the limits are plotted; the SATV is used only to find the
 # boundaries and the outliers.
 
+# %% {"tags": ["run"]}
+# Average precipitation as a function of time (required by the assignment).
+precip = daily_no3["precipitation"]
+fig, ax = plt.subplots(figsize=(14, 4))
+ax.plot(precip.index, precip, linewidth=0.9, color="tab:blue")
+ax.set_title("Daily area-mean precipitation — NO3 2024")
+ax.set_xlabel("Date")
+ax.set_ylabel("mm/day")
+ax.grid(True, alpha=0.3)
+fig.tight_layout()
 
-# %%
-SATV_DESCRIPTION = (
-    "Seasonally adjusted temperature variations (SATV): the high-pass part of "
-    "the signal obtained by zeroing the low-frequency DCT coefficients."
+# %% {"tags": ["run"]}
+# SPC on the daily area-mean precipitation (the series named by the task).
+precip_fig, precip_summary, precip_outliers = spc_outliers(
+    precip,
+    cutoff_per_year=SPC_CUTOFF_CYCLES_PER_YEAR,
+    n_std=SPC_STD_DEVIATIONS,
+    label="Precipitation",
+    unit="mm/day",
+    lower_bound=0.0,  # precipitation cannot be negative
+)
+display(precip_fig)
+plt.close(precip_fig)
+display(precip_outliers.head(10))
+print(
+    f"SPC flagged {precip_summary['outliers']} of {precip_summary['hours']} days "
+    f"({precip_summary['share']:.1%}) at ±{precip_summary['n_std']:g}σ."
 )
 
+# %% [markdown]
+# **Findings.** At ±3σ and a 12-cycle/year cut-off, 12 precipitation days are
+# flagged, clustered in heavy-rain events through the year; at ±2σ the count is
+# 39. The lower limit is floored at 0, so only the upper limit can be crossed.
 
-# %%
-def satv_from_dct(series: pd.Series, cutoff_fraction: float = DCT_CUTOFF_FRACTION):
-    """Return the high-pass DCT component of ``series`` (the SATV)."""
-    if not 0 <= cutoff_fraction < 1:
-        raise ValueError("cutoff_fraction must be in [0, 1)")
+# %% {"tags": ["run"]}
+# SPC on the daily area-mean temperature (the series named by the clarification).
+# The SATV is used to derive the limits and the flags; it is not plotted.
+temperature = daily_no3["temperature_2m"].copy()
+temperature.name = "temperature_2m (NO3)"
 
-    values = series.to_numpy(dtype=float)
-    coefficients = dct(values, norm="ortho")
-    cutoff = int(len(coefficients) * cutoff_fraction)
-    coefficients[:cutoff] = 0.0
-    return idct(coefficients, norm="ortho")
+temp_fig, temp_summary, temp_outliers = spc_outliers(
+    temperature,
+    cutoff_per_year=SPC_CUTOFF_CYCLES_PER_YEAR,
+    n_std=SPC_STD_DEVIATIONS,
+    label="Temperature",
+    unit="°C",
+)
+display(temp_fig)
+plt.close(temp_fig)
+display(temp_outliers)
+print(
+    f"SPC flagged {temp_summary['outliers']} of {temp_summary['hours']} days "
+    f"({temp_summary['share']:.1%}) at ±{temp_summary['n_std']:g}σ."
+)
 
-
-# %%
-def spc_outliers(
-    series: pd.Series,
-    cutoff_fraction: float = DCT_CUTOFF_FRACTION,
-    std_deviations: float = SPC_STD_DEVIATIONS,
-) -> tuple[plt.Figure, pd.DataFrame]:
-    """
-    Flag outliers with Statistical Process Control limits built on the SATV.
-
-    The SATV is the high-pass part of the series, so it measures the departure
-    from the slowly varying seasonal baseline rather than the absolute level.
-    The limits therefore follow that baseline: ``baseline + median(SATV) ±
-    std_deviations * sigma`` where ``sigma`` is the MAD-based robust standard
-    deviation of the SATV.
-
-    Only the original series and the limits are plotted; the SATV itself is
-    used solely to derive the bounds and the outlier flags.
-
-    Returns the figure and a summary table of the outliers.
-    """
-    satv = pd.Series(satv_from_dct(series, cutoff_fraction), index=series.index)
-    baseline = series - satv
-    sigma = robust_sigma(satv.to_numpy())
-    centre_offset = float(np.median(satv.to_numpy()))
-
-    centre = baseline + centre_offset
-    upper = centre + std_deviations * sigma
-    lower = centre - std_deviations * sigma
-
-    is_outlier = (series > upper) | (series < lower)
-    outliers = pd.DataFrame(
-        {
-            "value": series[is_outlier],
-            "satv": satv[is_outlier],
-            "limit_upper": upper[is_outlier],
-            "limit_lower": lower[is_outlier],
-        }
-    )
-    outliers.index.name = "date"
-
-    fig, ax = plt.subplots(figsize=(14, 5))
-    ax.plot(series.index, series, linewidth=1.0, label="Observed")
-    ax.plot(series.index, centre, color="tab:gray", linestyle=":", label="Baseline")
-    ax.plot(series.index, upper, color="tab:red", linestyle="--", label="SPC upper")
-    ax.plot(series.index, lower, color="tab:red", linestyle="--", label="SPC lower")
-    ax.scatter(
-        outliers.index,
-        outliers["value"],
-        color="tab:red",
-        s=35,
-        zorder=3,
-        label=f"Outliers ({len(outliers)})",
-    )
-    ax.set_title(
-        f"SPC on {series.name} "
-        f"(DCT cutoff={cutoff_fraction:.0%}, ±{std_deviations:g}σ, "
-        f"σ_robust={sigma:.3g})"
-    )
-    ax.set_xlabel("Date")
-    ax.set_ylabel(series.name)
-    ax.grid(True, alpha=0.3)
-    ax.legend(loc="best")
-    fig.tight_layout()
-    return fig, outliers
-
+# %% [markdown]
+# **Findings.** At the same 12 cycles/year and ±3σ, only 17 January exceeds the
+# limits; at ±2σ twenty days do. The 3σ day is a real cold day rather than a
+# data error, which is why the plot flags it without calling it wrong.
 
 # %% [markdown]
 # ## 7. Local Outlier Factor anomalies
 #
 # LOF compares the local density around each day with the density of its
-# neighbours. `contamination=0.01` asks for about 1% of the days to be labelled
+# neighbours. Each day is described by its time and its temperature, both
+# standardised, so a day is anomalous when its temperature does not fit the days
+# around it. `contamination=0.01` asks for about 1% of the days to be labelled
 # anomalous, as required by the assignment. The returned table contains the
 # flagged values and their LOF scores (higher means more anomalous).
 
-
-# %%
-def lof_outliers(
-    series: pd.Series,
-    contamination: float = LOF_CONTAMINATION,
-    n_neighbors: int = 20,
-) -> tuple[plt.Figure, pd.DataFrame]:
-    """
-    Flag anomalies with the Local Outlier Factor method.
-
-    LOF is applied to the standardised values; a proportion of
-    ``contamination`` (default 1%) is labelled as anomalous. The returned table
-    contains the flagged values together with their LOF score (higher = more
-    anomalous).
-    """
-    values = series.to_numpy(dtype=float).reshape(-1, 1)
-    if len(values) <= n_neighbors:
-        raise ValueError(
-            f"LOF needs more than n_neighbors={n_neighbors} samples, got {len(values)}"
-        )
-
-    scaled = StandardScaler().fit_transform(values)
-    detector = LocalOutlierFactor(
-        n_neighbors=n_neighbors,
-        contamination=contamination,
-    )
-    labels = detector.fit_predict(scaled)
-    scores = -detector.negative_outlier_factor_
-    is_outlier = labels == -1
-
-    outliers = pd.DataFrame(
-        {"value": series[is_outlier], "lof_score": scores[is_outlier]}
-    )
-    outliers.index.name = "date"
-
-    fig, ax = plt.subplots(figsize=(14, 5))
-    ax.plot(series.index, series, linewidth=1.0, label="Observed")
-    ax.scatter(
-        outliers.index,
-        outliers["value"],
-        color="tab:orange",
-        s=35,
-        zorder=3,
-        label=f"Anomalies ({len(outliers)})",
-    )
-    ax.set_title(
-        f"LOF anomalies in {series.name} "
-        f"(contamination={contamination:.0%}, n_neighbors={n_neighbors})"
-    )
-    ax.set_xlabel("Date")
-    ax.set_ylabel(series.name)
-    ax.grid(True, alpha=0.3)
-    ax.legend(loc="best")
-    fig.tight_layout()
-    return fig, outliers
-
+# %% {"tags": ["run"]}
+# LOF on the same temperature series, with the required 1% contamination.
+lof_fig, lof_summary, lof_table = lof_outliers(
+    temperature,
+    contamination=LOF_CONTAMINATION,
+    n_neighbors=20,
+    label="Temperature",
+    unit="°C",
+)
+display(lof_fig)
+plt.close(lof_fig)
+display(lof_table)
+print(
+    f"LOF flagged {lof_summary['anomalies']} of {lof_summary['hours']} days "
+    f"({lof_summary['share']:.1%})."
+)
 
 # %% [markdown]
-# ## Pipeline
-#
-# `main()` runs the four steps in order; each step is also callable on its own.
-
-
-# %%
-def run_magasin_analysis(df_mag: pd.DataFrame) -> pd.Series:
-    """Run the STL and spectrogram tasks on the reservoir filling series."""
-    series = filling_series(df_mag)
-    print(
-        f"\nFilling series: {len(series)} weeks "
-        f"({series.index.min().date()} -> {series.index.max().date()})"
-    )
-
-    stl_fig, _stl_result = stl_analysis(series)
-    plt.show()
-
-    spectrogram_fig, _f, _t, _power = spectrogram_analysis(series)
-    plt.show()
-
-    return series
-
-
-# %%
-def run_weather_analysis(
-    kind: str = WEATHER_AREA_KIND,
-    names: Sequence[str] = WEATHER_AREA_NAMES,
-    year: int = WEATHER_YEAR,
-    count: int = POINTS_PER_REGION,
-    refresh: bool = REFRESH_WEATHER,
-) -> dict[str, pd.DataFrame]:
-    """
-    Sample the areas, download ERA5 data and run the anomaly checks.
-
-    SPC/DCT and LOF are run on temperature, following the teacher's
-    clarification; precipitation is downloaded and kept for the plots.
-    """
-    start = f"{year}-01-01"
-    end = f"{year}-12-31"
-    print(
-        f"\n{kind} areas: "
-        + ", ".join(f"{name}={list(area_codes(kind)[name])}" for name in names)
-    )
-
-    results: dict[str, pd.DataFrame] = {}
-    for name in names:
-        print(f"\n[{kind}] {name}")
-        daily = download_region_weather(
-            name,
-            start,
-            end,
-            kind=kind,
-            count=count,
-            refresh=refresh,
-        )
-        results[name] = daily
-
-        temperature = daily["temperature_2m"]
-        temperature.name = f"temperature_2m ({name})"
-
-        spc_fig, spc_summary = spc_outliers(temperature)
-        plt.show()
-        print(f"  SPC outliers: {len(spc_summary)}")
-        print(spc_summary.head(10).to_string())
-
-        lof_fig, lof_summary = lof_outliers(temperature)
-        plt.show()
-        print(f"  LOF anomalies: {len(lof_summary)}")
-        print(lof_summary.head(10).to_string())
-
-        precipitation = daily["precipitation"]
-        precipitation.name = f"precipitation ({name})"
-        fig, ax = plt.subplots(figsize=(14, 5))
-        ax.plot(precipitation.index, precipitation, linewidth=1.0)
-        ax.set_title(f"Daily area-mean precipitation - {name} {year}")
-        ax.set_xlabel("Date")
-        ax.set_ylabel("mm/day")
-        ax.grid(True, alpha=0.3)
-        fig.tight_layout()
-        plt.show()
-
-    return results
-
-
-# %%
-def main() -> None:
-    """Run the whole CA3 pipeline."""
-    print("IND320 - part 3: Data quality")
-    df_mag = load_magasinstatistikk()
-    run_magasin_analysis(df_mag)
-    run_weather_analysis()
-    print("\nDone.")
-
-
-# %%
-if __name__ == "__main__":
-    main()
-
+# **Findings.** The four flagged days are 20–22 November, a cold spell, and
+# 21 July. A value-only LOF would instead pick the hottest summer days; adding
+# time as a feature is what makes the method local.
 
 # %% [markdown]
 # ## 8. Tests
@@ -1236,9 +1158,76 @@ if __name__ == "__main__":
 # The four analysis functions are tested on synthetic series where the correct
 # answer is known: STL must reconstruct the observed series, the spectrogram
 # must return consistent shapes, SPC must flag an injected spike, and LOF must
-# return about the requested proportion. The full self-test module
-# (`test_proj_p3.py`) is run at the end.
+# return about the requested proportion. The full self-test module adds scale
+# invariance, limit-centre, known-frequency and robust-effect checks; it is run
+# at the end.
 
+# %% {"tags": ["run"]}
+# Test 1: STL must reconstruct the observed series.
+test_index = pd.date_range("2020-01-06", periods=260, freq="W-MON")
+test_values = (
+    60
+    + 10 * np.sin(2 * np.pi * np.arange(260) / 52)
+    + np.random.default_rng(0).normal(0, 2, 260)
+)
+test_series = pd.Series(test_values, index=test_index, name="synthetic")
+test_fig, test_result = stl_analysis(test_series)
+assert np.allclose(test_result.trend + test_result.seasonal + test_result.resid, test_values)
+print("STL test passed: trend + seasonal + residual equals the observed series.")
+plt.close(test_fig)
+
+# %% {"tags": ["run"]}
+# Test 2: the spectrogram must return one power value per frequency/segment.
+test_fig, test_freqs, test_times, test_power = spectrogram_analysis(test_series)
+assert test_power.shape == (test_freqs.size, test_times.size)
+assert np.all(test_power >= 0)
+print(f"Spectrogram test passed: {test_power.shape[0]} frequencies x "
+      f"{test_power.shape[1]} segments.")
+plt.close(test_fig)
+
+# %% {"tags": ["run"]}
+# Test 3: SPC must flag an injected spike.
+spike_values = np.random.default_rng(0).normal(0, 1, 366)
+spike_values[100] += 15
+spike_series = pd.Series(
+    spike_values,
+    index=pd.date_range("2024-01-01", periods=366, freq="D"),
+    name="spike",
+)
+spike_fig, spike_summary, spike_outliers = spc_outliers(
+    spike_series, cutoff_per_year=12, n_std=3.0
+)
+assert spike_series.index[100] in spike_outliers.index
+print("SPC test passed: the injected spike was flagged.")
+plt.close(spike_fig)
+
+# %% {"tags": ["run"]}
+# Test 4: LOF must return about the requested contamination proportion.
+lof_values = np.random.default_rng(1).normal(0, 1, 200)
+lof_series = pd.Series(
+    lof_values,
+    index=pd.date_range("2024-01-01", periods=200, freq="D"),
+    name="lof_test",
+)
+lof_fig, lof_summary, lof_test = lof_outliers(lof_series, contamination=0.05)
+assert 8 <= len(lof_test) <= 12
+print(f"LOF test passed: {len(lof_test)} of 200 points flagged at 5% contamination.")
+plt.close(lof_fig)
+
+# %% {"tags": ["run"]}
+# Run the complete test suite as a final check. The tests live in ``tests/`` and
+# import this file's helpers through a fixture that skips the run cells above.
+import subprocess
+import sys
+
+test_result = subprocess.run(
+    [sys.executable, "-m", "pytest", "tests"],
+    cwd=REPO_ROOT,
+    capture_output=True,
+    text=True,
+)
+print(test_result.stdout.strip()[-2000:])
+assert test_result.returncode == 0, "pytest failed; see the output above"
 
 # %% [markdown]
 # ## 9. Summary
@@ -1253,11 +1242,13 @@ if __name__ == "__main__":
 #   areas and the five NVE regions grouped into East, West and North.
 # - The ERA5 download for NO3 2024 returns 8,784 hourly area means from 1000
 #   sampled locations; the analysis aggregates them to 366 daily means.
-# - The SPC analysis flags 12 days in 2024 at ±2σ; the LOF analysis flags 4
-#   days at 1% contamination. Both are shown in contrasting colours.
-# - The DCT/SPC step follows the teacher's clarification and uses temperature.
-#   The precipitation series is still downloaded and plotted as required.
-
+# - The SPC analysis flags 12 precipitation days and 1 temperature day in 2024 at
+#   ±3σ with a 12-cycle/year cut-off; at ±2σ the counts are 39 and 20. LOF flags
+#   4 days at 1% contamination. All are shown in contrasting colours.
+# - The DCT/SPC step shows both series: precipitation follows the task text,
+#   temperature the teacher's clarification.
+# - The Streamlit app uses a different, land-clipped 100-cell hourly series, so
+#   its SPC/LOF counts are not expected to match these daily 1000-point numbers.
 
 # %% [markdown]
 # ## Data sources

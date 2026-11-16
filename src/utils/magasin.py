@@ -154,3 +154,25 @@ def area_numbers_for(df: pd.DataFrame, area_type: str) -> list[int]:
     """Return the area numbers associated with one area type."""
     values = df.loc[df["area_type"] == area_type, "area_number"].unique()
     return sorted(int(value) for value in values)
+
+
+@st.cache_data(ttl=7 * 24 * 3600, show_spinner=False)
+def filling_series(area_type: str, area_number: int) -> pd.Series:
+    """Return the weekly filling series for one Magasinstatistikk area.
+
+    The index is made regular (``asfreq('7D')`` plus interpolation) because STL
+    and the spectrogram need evenly spaced weeks. The series is keyed by area,
+    not by coordinate — ``docs/CA3/crs.md`` has the details.
+    """
+    frame = load_all()
+    subset = frame.loc[
+        (frame["area_type"] == area_type)
+        & (frame["area_number"] == int(area_number))
+    ]
+    if subset.empty:
+        raise ValueError(f"No filling data for {area_type} {area_number}")
+
+    series = subset.set_index("date")["water_level"].sort_index()
+    series = series.asfreq("7D").interpolate()
+    series.name = f"{area_type} {area_number}"
+    return series
